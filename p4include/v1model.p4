@@ -131,7 +131,15 @@ enum HashAlgorithm {
     random,
     identity,
     csum16,
-    xor16
+    xor16,
+    hash1,
+    hash2,
+    hash3,
+    hash4,
+    ghash1,
+    ghash2,
+    ghash3,
+    ghash4
 }
 
 extern void mark_to_drop();

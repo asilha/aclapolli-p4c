@@ -933,6 +933,22 @@ const IR::Expression* ProgramStructure::convertHashAlgorithm(
         result = v1model.algorithm.csum16.Id();
     } else if (algorithm == "xor16") {
         result = v1model.algorithm.xor16.Id();
+    } else if (algorithm == "hash1") {
+        result = v1model.algorithm.hash1.Id();
+    } else if (algorithm == "hash2") {
+        result = v1model.algorithm.hash2.Id();
+    } else if (algorithm == "hash3") {
+        result = v1model.algorithm.hash3.Id();
+    } else if (algorithm == "hash4") {
+        result = v1model.algorithm.hash4.Id();
+    } else if (algorithm == "ghash1") {
+        result = v1model.algorithm.ghash1.Id();
+    } else if (algorithm == "ghash2") {
+        result = v1model.algorithm.ghash2.Id();
+    } else if (algorithm == "ghash3") {
+        result = v1model.algorithm.ghash3.Id();
+    } else if (algorithm == "ghash4") {
+        result = v1model.algorithm.ghash4.Id();
     } else {
         ::warning("%1%: unexpected algorithm", algorithm);
         result = algorithm;
