@@ -244,22 +244,22 @@ ExternConverter::convertHashAlgorithm(cstring algorithm) {
         result = "csum16";
     else if (algorithm == P4V1::V1Model::instance.algorithm.xor16.name)
         result = "xor16";
-    else if (algorithm == P4V1::V1Model::instance.algorithm.hash1.name)
-        result = "hash1";
-    else if (algorithm == P4V1::V1Model::instance.algorithm.hash2.name)
-        result = "hash2";
-    else if (algorithm == P4V1::V1Model::instance.algorithm.hash3.name)
-        result = "hash3";
-    else if (algorithm == P4V1::V1Model::instance.algorithm.hash4.name)
-        result = "hash4";
-    else if (algorithm == P4V1::V1Model::instance.algorithm.ghash1.name)
-        result = "ghash1";
-    else if (algorithm == P4V1::V1Model::instance.algorithm.ghash2.name)
-        result = "ghash2";
-    else if (algorithm == P4V1::V1Model::instance.algorithm.ghash3.name)
-        result = "ghash3";
-    else if (algorithm == P4V1::V1Model::instance.algorithm.ghash4.name)
-        result = "ghash4";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.h1.name)
+        result = "h1";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.h2.name)
+        result = "h2";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.h3.name)
+        result = "h3";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.h4.name)
+        result = "h4";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.g1.name)
+        result = "g1";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.g2.name)
+        result = "g2";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.g3.name)
+        result = "g3";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.g4.name)
+        result = "g4";
     else
         ::error("%1%: unexpected algorithm", algorithm);
     return result;
