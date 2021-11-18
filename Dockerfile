@@ -1,5 +1,5 @@
-FROM p4lang/behavioral-model:latest
-MAINTAINER Seth Fowler <seth.fowler@barefootnetworks.com>
+FROM asilha/p4lang-behavioral-model:euclid
+LABEL MAINTAINER="Seth Fowler <seth.fowler@barefootnetworks.com>"
 
 # Default to using 2 make jobs, which is a good default for CI. If you're
 # building locally or you know there are more cores available, you may want to
