@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct metadata_t {
@@ -26,10 +27,10 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".action_1_1") action action_0(bit<1> value) {
-        meta.md.field_1_1_1 = value;
+    @name(".action_1_1") action action_0(@name("value") bit<1> value_1) {
+        meta.md.field_1_1_1 = value_1;
         meta.md.field_2_1_1 = 1w1;
     }
     @name(".dmac") table dmac_0 {

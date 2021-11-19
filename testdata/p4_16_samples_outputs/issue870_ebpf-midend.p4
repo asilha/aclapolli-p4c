@@ -44,12 +44,12 @@ parser prs(packet_in p, out Headers_t headers) {
 }
 
 control pipe(inout Headers_t headers, out bool pass) {
-    bool hasReturned;
-    @name(".NoAction") action NoAction_0() {
+    @name("pipe.hasReturned") bool hasReturned;
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name("pipe.Reject") action Reject(IPv4Address add) {
+    @name("pipe.Reject") action Reject(@name("add") IPv4Address add_1) {
         pass = false;
-        headers.ipv4.srcAddr[31:0] = add[31:16] ++ add[15:0];
+        headers.ipv4.srcAddr = add_1[31:16] ++ add_1[15:0];
     }
     @name("pipe.Check_src_ip") table Check_src_ip_0 {
         key = {
@@ -62,33 +62,34 @@ control pipe(inout Headers_t headers, out bool pass) {
         implementation = hash_table(32w1024);
         const default_action = NoAction_0();
     }
-    @hidden action act() {
+    @hidden action issue870_ebpf72() {
         pass = false;
         hasReturned = true;
     }
-    @hidden action act_0() {
+    @hidden action issue870_ebpf68() {
         hasReturned = false;
         pass = true;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue870_ebpf68 {
         actions = {
-            act_0();
+            issue870_ebpf68();
         }
-        const default_action = act_0();
+        const default_action = issue870_ebpf68();
     }
-    @hidden table tbl_act_0 {
+    @hidden table tbl_issue870_ebpf72 {
         actions = {
-            act();
+            issue870_ebpf72();
         }
-        const default_action = act();
+        const default_action = issue870_ebpf72();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue870_ebpf68.apply();
         if (!headers.ipv4.isValid()) {
-            tbl_act_0.apply();
+            tbl_issue870_ebpf72.apply();
         }
-        if (!hasReturned) 
+        if (!hasReturned) {
             Check_src_ip_0.apply();
+        }
     }
 }
 

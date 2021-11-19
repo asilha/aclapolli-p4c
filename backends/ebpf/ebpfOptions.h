@@ -20,17 +20,16 @@ limitations under the License.
 #include <getopt.h>
 #include "frontends/common/options.h"
 
+
 class EbpfOptions : public CompilerOptions {
  public:
     // file to output to
     cstring outputFile = nullptr;
-
-    EbpfOptions() {
-        langVersion = CompilerOptions::FrontendVersion::P4_16;
-        registerOption("-o", "outfile",
-                [this](const char* arg) { outputFile = arg; return true; },
-                "Write output to outfile");
-    }
+    // read from json
+    bool loadIRFromJson = false;
+    // Externs generation
+    bool emitExterns = false;
+    EbpfOptions();
 };
 
 using EbpfContext = P4CContextWithOptions<EbpfOptions>;

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -14,8 +15,9 @@ header vag_t {
 }
 
 struct metadata {
-    @name(".ing_metadata") 
-    ingress_metadata_t ing_metadata;
+    bit<8>  _ing_metadata_f10;
+    bit<16> _ing_metadata_f21;
+    bit<32> _ing_metadata_f32;
 }
 
 struct headers {
@@ -31,7 +33,7 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
     @name(".nop") action nop() {
     }
@@ -51,12 +53,12 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_1() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name(".nop") action nop_2() {
     }
-    @name(".set_f1") action set_f1(bit<8> f1) {
-        meta.ing_metadata.f1 = f1;
+    @name(".set_f1") action set_f1(@name("f1") bit<8> f1_1) {
+        meta._ing_metadata_f10 = f1_1;
     }
     @name(".i_t1") table i_t1_0 {
         actions = {

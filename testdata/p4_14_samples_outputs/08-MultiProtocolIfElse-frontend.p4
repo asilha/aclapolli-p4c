@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -101,9 +102,9 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
     @name(".parse_ipv4") state parse_ipv4 {
         packet.extract<ipv4_t>(hdr.ipv4);
         transition select(hdr.ipv4.fragOffset, hdr.ipv4.ihl, hdr.ipv4.protocol) {
-            (13w0x0 &&& 13w0x0, 4w0x5 &&& 4w0xf, 8w0x1 &&& 8w0xff): parse_icmp;
-            (13w0x0 &&& 13w0x0, 4w0x5 &&& 4w0xf, 8w0x6 &&& 8w0xff): parse_tcp;
-            (13w0x0 &&& 13w0x0, 4w0x5 &&& 4w0xf, 8w0x11 &&& 8w0xff): parse_udp;
+            (13w0x0 &&& 13w0x0, 4w0x5, 8w0x1): parse_icmp;
+            (13w0x0 &&& 13w0x0, 4w0x5, 8w0x6): parse_tcp;
+            (13w0x0 &&& 13w0x0, 4w0x5, 8w0x11): parse_udp;
             default: accept;
         }
     }
@@ -150,11 +151,11 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_4() {
+    @noWarn("unused") @name(".NoAction") action NoAction_4() {
     }
-    @name(".NoAction") action NoAction_5() {
+    @noWarn("unused") @name(".NoAction") action NoAction_5() {
     }
     @name(".nop") action nop() {
     }
@@ -162,14 +163,14 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name(".nop") action nop_4() {
     }
-    @name(".set_egress_port") action set_egress_port(bit<8> egress_port) {
-        meta.ing_metadata.egress_port = egress_port;
+    @name(".set_egress_port") action set_egress_port(@name("egress_port") bit<8> egress_port_1) {
+        meta.ing_metadata.egress_port = egress_port_1;
     }
-    @name(".set_egress_port") action set_egress_port_3(bit<8> egress_port) {
-        meta.ing_metadata.egress_port = egress_port;
+    @name(".set_egress_port") action set_egress_port_3(@name("egress_port") bit<8> egress_port_2) {
+        meta.ing_metadata.egress_port = egress_port_2;
     }
-    @name(".set_egress_port") action set_egress_port_4(bit<8> egress_port) {
-        meta.ing_metadata.egress_port = egress_port;
+    @name(".set_egress_port") action set_egress_port_4(@name("egress_port") bit<8> egress_port_3) {
+        meta.ing_metadata.egress_port = egress_port_3;
     }
     @name(".ipv4_match") table ipv4_match_0 {
         actions = {
@@ -205,13 +206,13 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         default_action = NoAction_5();
     }
     apply {
-        if (hdr.ethernet.etherType == 16w0x800) 
+        if (hdr.ethernet.etherType == 16w0x800) {
             ipv4_match_0.apply();
-        else 
-            if (hdr.ethernet.etherType == 16w0x86dd) 
-                ipv6_match_0.apply();
-            else 
-                l2_match_0.apply();
+        } else if (hdr.ethernet.etherType == 16w0x86dd) {
+            ipv6_match_0.apply();
+        } else {
+            l2_match_0.apply();
+        }
     }
 }
 

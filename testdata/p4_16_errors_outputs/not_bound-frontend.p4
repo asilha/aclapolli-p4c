@@ -5,6 +5,7 @@ struct metadata {
 }
 
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
@@ -19,7 +20,7 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name("ingress.set_nhop") action set_nhop(bit<9> port) {
+    @name("ingress.set_nhop") action set_nhop(@name("port") bit<9> port) {
         standard_metadata.egress_spec = port;
     }
     apply {

@@ -18,6 +18,32 @@ limitations under the License.
 #include "lib/gc.h"
 #include "lib/n4.h"
 
+#include "pass_manager.h"
+
+void PassManager::removePasses(const std::vector<cstring> &exclude) {
+    for (auto it : exclude) {
+        bool excluded = false;
+        for (std::vector<Visitor *>::iterator it1 = passes.begin(); it1 != passes.end(); ++it1) {
+            if ((*it1)!= nullptr && it == (*it1)->name()) {
+                delete (*it1);
+                passes.erase(it1--);
+                excluded = true;
+            }
+        }
+        if (!excluded) {
+            throw std::runtime_error("Trying to exclude unknown pass '" + it + "'");
+        }
+    }
+}
+
+void PassManager::listPasses(std::ostream &out, cstring sep) const {
+    bool first = true;
+    for (auto p : passes) {
+        if (first) out << sep;
+        out << p->name();
+        first = false; }
+}
+
 const IR::Node *PassManager::apply_visitor(const IR::Node *program, const char *) {
     safe_vector<std::pair<safe_vector<Visitor *>::iterator, const IR::Node *>> backup;
     static indent_t log_indent(-1);
@@ -37,11 +63,12 @@ const IR::Node *PassManager::apply_visitor(const IR::Node *program, const char *
                 backup.emplace_back(it, program); } }
         try {
             try {
-                size_t maxmem;
                 LOG1(log_indent << name() << " invoking " << v->name());
                 auto after = program->apply(**it);
-                LOG3(log_indent << "heap after " << v->name() << ": in use " <<
-                     n4(gc_mem_inuse(&maxmem)) << "B, max " << n4(maxmem) << "B");
+                if (LOGGING(3)) {
+                    size_t maxmem, mem = gc_mem_inuse(&maxmem);  // triggers gc
+                    LOG3(log_indent << "heap after " << v->name() << ": in use " <<
+                         n4(mem) << "B, max " << n4(maxmem) << "B"); }
                 if (stop_on_error && ::errorCount() > initial_error_count)
                     break;
                 if ((program = after) == nullptr) break;
@@ -121,5 +148,13 @@ const IR::Node *PassRepeatUntil::apply_visitor(const IR::Node *program, const ch
         running = true;
         program = PassManager::apply_visitor(program, name);
     } while (!done());
+    return program;
+}
+
+const IR::Node *PassIf::apply_visitor(const IR::Node *program, const char *name) {
+    if (cond()) {
+        running = true;
+        program = PassManager::apply_visitor(program, name);
+    }
     return program;
 }

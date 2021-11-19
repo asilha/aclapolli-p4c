@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # Copyright 2018 VMware, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -67,7 +67,7 @@ class Bridge(object):
 
     def ns_proc_open(self):
         """ Open a bash process in the namespace and return the handle """
-        cmd = self.get_ns_prefix() + " /bin/bash "
+        cmd = self.get_ns_prefix() + " /usr/bin/env bash "
         return open_process(self.verbose, cmd, self.outputs)
 
     def ns_proc_write(self, proc, cmd):
@@ -104,6 +104,8 @@ class Bridge(object):
         # Prevent the broadcasting of ipv6 link discovery messages
         self.ns_exec("sysctl -w net.ipv6.conf.all.disable_ipv6=1")
         self.ns_exec("sysctl -w net.ipv6.conf.default.disable_ipv6=1")
+        # Also filter igmp packets, -w is necessary because of a race condition
+        self.ns_exec("iptables -w -A OUTPUT -p 2 -j DROP")
         return SUCCESS
 
     def create_bridge(self):

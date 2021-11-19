@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header mpls {
@@ -40,8 +41,9 @@ control MyComputeChecksum(inout my_packet p, inout my_metadata m) {
 
 control MyDeparser(packet_out b, in my_packet p) {
     apply {
-        if (p.data[0].isValid()) 
+        if (p.data[0].isValid()) {
             b.emit<mpls[8]>(p.data);
+        }
     }
 }
 

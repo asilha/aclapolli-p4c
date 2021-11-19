@@ -34,62 +34,52 @@ struct metadata {
 }
 
 typedef bit<48> ByteCounter_t;
-typedef bit<80> PacketByteCounter_t;
+typedef bit<64> PacketByteCounter_t;
 struct headers {
     ethernet_t ethernet;
     ipv4_t     ipv4;
 }
 
 parser IngressParserImpl(packet_in buffer, out headers parsed_hdr, inout metadata user_meta, in psa_ingress_parser_input_metadata_t istd, in empty_metadata_t resubmit_meta, in empty_metadata_t recirculate_meta) {
-    headers parsed_hdr_0;
-    metadata user_meta_0;
     state start {
-        parsed_hdr_0.ethernet.setInvalid();
-        parsed_hdr_0.ipv4.setInvalid();
-        user_meta_0 = user_meta;
+        parsed_hdr.ethernet.setInvalid();
+        parsed_hdr.ipv4.setInvalid();
         transition CommonParser_start;
     }
     state CommonParser_start {
-        buffer.extract<ethernet_t>(parsed_hdr_0.ethernet);
-        transition select(parsed_hdr_0.ethernet.etherType) {
+        buffer.extract<ethernet_t>(parsed_hdr.ethernet);
+        transition select(parsed_hdr.ethernet.etherType) {
             16w0x800: CommonParser_parse_ipv4;
             default: start_0;
         }
     }
     state CommonParser_parse_ipv4 {
-        buffer.extract<ipv4_t>(parsed_hdr_0.ipv4);
+        buffer.extract<ipv4_t>(parsed_hdr.ipv4);
         transition start_0;
     }
     state start_0 {
-        parsed_hdr = parsed_hdr_0;
-        user_meta = user_meta_0;
         transition accept;
     }
 }
 
 parser EgressParserImpl(packet_in buffer, out headers parsed_hdr, inout metadata user_meta, in psa_egress_parser_input_metadata_t istd, in empty_metadata_t normal_meta, in empty_metadata_t clone_i2e_meta, in empty_metadata_t clone_e2e_meta) {
-    headers parsed_hdr_1;
-    metadata user_meta_1;
     state start {
-        parsed_hdr_1.ethernet.setInvalid();
-        parsed_hdr_1.ipv4.setInvalid();
-        user_meta_1 = user_meta;
+        parsed_hdr.ethernet.setInvalid();
+        parsed_hdr.ipv4.setInvalid();
         transition CommonParser_start_0;
     }
     state CommonParser_start_0 {
-        buffer.extract<ethernet_t>(parsed_hdr_1.ethernet);
-        transition select(parsed_hdr_1.ethernet.etherType) {
+        buffer.extract<ethernet_t>(parsed_hdr.ethernet);
+        transition select(parsed_hdr.ethernet.etherType) {
             16w0x800: CommonParser_parse_ipv4_0;
             default: start_1;
         }
     }
     state CommonParser_parse_ipv4_0 {
-        buffer.extract<ipv4_t>(parsed_hdr_1.ipv4);
+        buffer.extract<ipv4_t>(parsed_hdr.ipv4);
         transition start_1;
     }
     state start_1 {
-        parsed_hdr = parsed_hdr_1;
-        user_meta = user_meta_1;
         transition accept;
     }
 }
@@ -97,21 +87,21 @@ parser EgressParserImpl(packet_in buffer, out headers parsed_hdr, inout metadata
 control ingress(inout headers hdr, inout metadata user_meta, in psa_ingress_input_metadata_t istd, inout psa_ingress_output_metadata_t ostd) {
     @name("ingress.port_bytes_in") Counter<ByteCounter_t, PortId_t>(32w512, PSA_CounterType_t.BYTES) port_bytes_in_0;
     @name("ingress.per_prefix_pkt_byte_count") DirectCounter<PacketByteCounter_t>(PSA_CounterType_t.PACKETS_AND_BYTES) per_prefix_pkt_byte_count_0;
-    @name("ingress.next_hop") action next_hop(PortId_t oport) {
+    @name("ingress.next_hop") action next_hop(@name("oport") PortId_t oport) {
         per_prefix_pkt_byte_count_0.count();
-        {
-            psa_ingress_output_metadata_t meta_2 = ostd;
-            PortId_t egress_port_1 = oport;
+        @noWarnUnused {
+            @name("ingress.meta") psa_ingress_output_metadata_t meta_2 = ostd;
+            @name("ingress.egress_port") PortId_t egress_port_1 = oport;
             meta_2.drop = false;
-            meta_2.multicast_group = 10w0;
+            meta_2.multicast_group = (MulticastGroup_t)32w0;
             meta_2.egress_port = egress_port_1;
             ostd = meta_2;
         }
     }
     @name("ingress.default_route_drop") action default_route_drop() {
         per_prefix_pkt_byte_count_0.count();
-        {
-            psa_ingress_output_metadata_t meta_3 = ostd;
+        @noWarnUnused {
+            @name("ingress.meta") psa_ingress_output_metadata_t meta_3 = ostd;
             meta_3.drop = true;
             ostd = meta_3;
         }
@@ -129,8 +119,9 @@ control ingress(inout headers hdr, inout metadata user_meta, in psa_ingress_inpu
     }
     apply {
         port_bytes_in_0.count(istd.ingress_port);
-        if (hdr.ipv4.isValid()) 
+        if (hdr.ipv4.isValid()) {
             ipv4_da_lpm_0.apply();
+        }
     }
 }
 

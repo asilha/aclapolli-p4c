@@ -19,8 +19,9 @@ control ctrl() {
             b: {
                 return;
             }
+            default: {
+            }
         }
-
     }
 }
 

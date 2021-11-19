@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header ethernet_t {
@@ -59,13 +60,13 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
     @name(".do_drop") action do_drop() {
     }
-    @name(".route_ipv4") action route_ipv4(bit<9> egress_spec) {
+    @name(".route_ipv4") action route_ipv4(@name("egress_spec") bit<9> egress_spec_1) {
         hdr.ipv4.ttl = hdr.ipv4.ttl + 8w255;
-        standard_metadata.egress_spec = egress_spec;
+        standard_metadata.egress_spec = egress_spec_1;
     }
     @name(".routing") table routing_0 {
         actions = {

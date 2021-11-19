@@ -1,4 +1,5 @@
 #include "nestedStructs.h"
+#include "frontends/p4/methodInstance.h"
 
 namespace P4 {
 
@@ -18,8 +19,9 @@ bool ComplexValues::isNestedStruct(const IR::Type* type) {
     return false;
 }
 
+template <class T>
 void ComplexValues::explode(cstring prefix, const IR::Type_Struct* type,
-                            FieldsMap* map, IR::Vector<IR::Declaration>* result) {
+                            FieldsMap* map, IR::Vector<T>* result) {
     CHECK_NULL(type);
     for (auto f : type->fields) {
         cstring fname = prefix + "_" + f->name;
@@ -45,13 +47,22 @@ const IR::Node* RemoveNestedStructs::postorder(IR::Declaration_Variable* decl) {
         return decl;
 
     BUG_CHECK(decl->initializer == nullptr, "%1%: did not expect an initializer", decl);
-    BUG_CHECK(decl->annotations->size() == 0,
-              "%1%: don't know how to handle variable annotations", decl);
-    auto result = new IR::Vector<IR::Declaration>();
+    BUG_CHECK(decl->annotations->size() == 0 ||
+              (decl->annotations->size() == 1 && decl->annotations->getSingle("name") != nullptr),
+              "%1%: don't know how to handle variable annotations other than @name", decl);
     auto map = new ComplexValues::FieldsMap();
     values->values.emplace(getOriginal<IR::Declaration_Variable>(), map);
-    values->explode(decl->getName().name, type->to<IR::Type_Struct>(), map, result);
-    return result;
+    if (findContext<IR::Function>()) {
+        auto result = new IR::IndexedVector<IR::StatOrDecl>();
+        values->explode(decl->getName().name, type->to<IR::Type_Struct>(),
+                        map, result);
+        return result;
+    } else {
+        auto result = new IR::Vector<IR::Declaration>();
+        values->explode(decl->getName().name, type->to<IR::Type_Struct>(),
+                        map, result);
+        return result;
+    }
 }
 
 const IR::Node* RemoveNestedStructs::postorder(IR::Member* expression) {
@@ -72,6 +83,23 @@ const IR::Node* RemoveNestedStructs::postorder(IR::Member* expression) {
         return expression;
     auto e = comp->convertToExpression();
     return e;
+}
+
+const IR::Node* RemoveNestedStructs::postorder(IR::MethodCallExpression* expression) {
+    auto mi = MethodInstance::resolve(
+        getOriginal<IR::MethodCallExpression>(), values->refMap, values->typeMap);
+    if (!mi->is<ExternMethod>() && !mi->is<ExternFunction>())
+        return expression;
+    for (auto p : mi->getActualParameters()->parameters) {
+        if (!p->hasOut())
+            continue;
+        if (values->isNestedStruct(p->type)) {
+            ::error(ErrorType::ERR_UNSUPPORTED_ON_TARGET,
+                    "%1%: extern functions with 'out' nested struct argument (%2%) not supported",
+                    expression, p);
+        }
+    }
+    return expression;
 }
 
 const IR::Node* RemoveNestedStructs::postorder(IR::PathExpression* expression) {

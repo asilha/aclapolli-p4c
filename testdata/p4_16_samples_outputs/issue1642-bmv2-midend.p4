@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header short {
@@ -19,8 +20,11 @@ struct parsed_packet_t {
 }
 
 struct local_metadata_t {
-    short s;
-    row_t row;
+    short  _s0;
+    bit<1> _row_alt0_valid1;
+    bit<7> _row_alt0_port2;
+    bit<1> _row_alt1_valid3;
+    bit<7> _row_alt1_port4;
 }
 
 parser parse(packet_in pk, out parsed_packet_t hdr, inout local_metadata_t local_metadata, inout standard_metadata_t standard_metadata) {
@@ -30,23 +34,23 @@ parser parse(packet_in pk, out parsed_packet_t hdr, inout local_metadata_t local
 }
 
 control ingress(inout parsed_packet_t hdr, inout local_metadata_t local_metadata, inout standard_metadata_t standard_metadata) {
-    @hidden action act() {
-        local_metadata.s.setValid();
-        local_metadata.s.f = 32w0;
-        local_metadata.row.alt0.valid = local_metadata.row.alt1.valid;
-        local_metadata.row.alt0.port = local_metadata.row.alt1.port;
-        local_metadata.row.alt0.valid = 1w1;
-        local_metadata.row.alt1.port = local_metadata.row.alt1.port + 7w1;
-        clone3<row_t>(CloneType.I2E, 32w0, local_metadata.row);
+    @hidden action issue1642bmv2l36() {
+        local_metadata._s0.setValid();
+        local_metadata._s0.f = 32w0;
+        local_metadata._row_alt0_valid1 = local_metadata._row_alt1_valid3;
+        local_metadata._row_alt0_port2 = local_metadata._row_alt1_port4;
+        local_metadata._row_alt0_valid1 = 1w1;
+        local_metadata._row_alt1_port4 = local_metadata._row_alt1_port4 + 7w1;
+        clone3<row_t>(CloneType.I2E, 32w0, (row_t){alt0 = (alt_t){valid = 1w1,port = local_metadata._row_alt0_port2},alt1 = (alt_t){valid = local_metadata._row_alt1_valid3,port = local_metadata._row_alt1_port4}});
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue1642bmv2l36 {
         actions = {
-            act();
+            issue1642bmv2l36();
         }
-        const default_action = act();
+        const default_action = issue1642bmv2l36();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue1642bmv2l36.apply();
     }
 }
 
@@ -60,7 +64,7 @@ control deparser(packet_out b, in parsed_packet_t hdr) {
     }
 }
 
-control verify_checksum(inout parsed_packet_t hdr, inout local_metadata_t local_metadata) {
+control verifyChecksum(inout parsed_packet_t hdr, inout local_metadata_t local_metadata) {
     apply {
     }
 }
@@ -70,5 +74,5 @@ control compute_checksum(inout parsed_packet_t hdr, inout local_metadata_t local
     }
 }
 
-V1Switch<parsed_packet_t, local_metadata_t>(parse(), verify_checksum(), ingress(), egress(), compute_checksum(), deparser()) main;
+V1Switch<parsed_packet_t, local_metadata_t>(parse(), verifyChecksum(), ingress(), egress(), compute_checksum(), deparser()) main;
 

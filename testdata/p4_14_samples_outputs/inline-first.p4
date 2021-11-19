@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct h {
@@ -30,8 +31,9 @@ control c(inout headers hdr, inout metadata meta, inout standard_metadata_t stan
         default_action = NoAction();
     }
     apply {
-        if (meta.m.b == 1w1) 
+        if (meta.m.b == 1w1) {
             t.apply();
+        }
     }
 }
 

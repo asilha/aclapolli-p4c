@@ -39,7 +39,6 @@ class KeyIsSimple {
  */
 class IsLikeLeftValue : public KeyIsSimple, public Inspector {
  protected:
-    TypeMap* typeMap;
     bool     simple;
 
  public:
@@ -175,8 +174,11 @@ class DoSimplifyKey : public Transform {
  */
 class SimplifyKey : public PassManager {
  public:
-    SimplifyKey(ReferenceMap* refMap, TypeMap* typeMap, KeyIsSimple* key_policy) {
-        passes.push_back(new TypeChecking(refMap, typeMap));
+    SimplifyKey(ReferenceMap* refMap, TypeMap* typeMap, KeyIsSimple* key_policy,
+                TypeChecking* typeChecking = nullptr) {
+        if (!typeChecking)
+            typeChecking = new TypeChecking(refMap, typeMap);
+        passes.push_back(typeChecking);
         passes.push_back(new DoSimplifyKey(refMap, typeMap, key_policy));
         setName("SimplifyKey");
     }

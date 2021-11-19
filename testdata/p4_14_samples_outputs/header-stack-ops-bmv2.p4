@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct metadata_t {
@@ -336,25 +337,20 @@ control op1_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
     }
     apply {
         if (meta.m.op == 8w0x0) {
-        }
-        else {
+        } else {
             if (meta.m.op >> 4 == 8w1) {
                 if (meta.m.op & 8w0xf == 8w1) {
                     op1_t_push_1.apply();
-                }
-                else {
+                } else {
                     if (meta.m.op & 8w0xf == 8w2) {
                         op1_t_push_2.apply();
-                    }
-                    else {
+                    } else {
                         if (meta.m.op & 8w0xf == 8w3) {
                             op1_t_push_3.apply();
-                        }
-                        else {
+                        } else {
                             if (meta.m.op & 8w0xf == 8w4) {
                                 op1_t_push_4.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w5) {
                                     op1_t_push_5.apply();
                                 }
@@ -362,25 +358,20 @@ control op1_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                         }
                     }
                 }
-            }
-            else {
+            } else {
                 if (meta.m.op >> 4 == 8w2) {
                     if (meta.m.op & 8w0xf == 8w1) {
                         op1_t_pop_1.apply();
-                    }
-                    else {
+                    } else {
                         if (meta.m.op & 8w0xf == 8w2) {
                             op1_t_pop_2.apply();
-                        }
-                        else {
+                        } else {
                             if (meta.m.op & 8w0xf == 8w3) {
                                 op1_t_pop_3.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w4) {
                                     op1_t_pop_4.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w5) {
                                         op1_t_pop_5.apply();
                                     }
@@ -388,25 +379,20 @@ control op1_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                             }
                         }
                     }
-                }
-                else {
+                } else {
                     if (meta.m.op >> 4 == 8w3) {
                         if (meta.m.op & 8w0xf == 8w0) {
                             op1_t_assign_header_0.apply();
-                        }
-                        else {
+                        } else {
                             if (meta.m.op & 8w0xf == 8w1) {
                                 op1_t_assign_header_1.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w2) {
                                     op1_t_assign_header_2.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w3) {
                                         op1_t_assign_header_3.apply();
-                                    }
-                                    else {
+                                    } else {
                                         if (meta.m.op & 8w0xf == 8w4) {
                                             op1_t_assign_header_4.apply();
                                         }
@@ -414,25 +400,20 @@ control op1_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                                 }
                             }
                         }
-                    }
-                    else {
+                    } else {
                         if (meta.m.op >> 4 == 8w4) {
                             if (meta.m.op & 8w0xf == 8w0) {
                                 op1_t_remove_header_0.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w1) {
                                     op1_t_remove_header_1.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w2) {
                                         op1_t_remove_header_2.apply();
-                                    }
-                                    else {
+                                    } else {
                                         if (meta.m.op & 8w0xf == 8w3) {
                                             op1_t_remove_header_3.apply();
-                                        }
-                                        else {
+                                        } else {
                                             if (meta.m.op & 8w0xf == 8w4) {
                                                 op1_t_remove_header_4.apply();
                                             }
@@ -440,25 +421,20 @@ control op1_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                                     }
                                 }
                             }
-                        }
-                        else {
+                        } else {
                             if (meta.m.op >> 4 == 8w5) {
                                 if (meta.m.op & 8w0xf == 8w0) {
                                     op1_t_add_header_0.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w1) {
                                         op1_t_add_header_1.apply();
-                                    }
-                                    else {
+                                    } else {
                                         if (meta.m.op & 8w0xf == 8w2) {
                                             op1_t_add_header_2.apply();
-                                        }
-                                        else {
+                                        } else {
                                             if (meta.m.op & 8w0xf == 8w3) {
                                                 op1_t_add_header_3.apply();
-                                            }
-                                            else {
+                                            } else {
                                                 if (meta.m.op & 8w0xf == 8w4) {
                                                     op1_t_add_header_4.apply();
                                                 }
@@ -743,25 +719,20 @@ control op2_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
     }
     apply {
         if (meta.m.op == 8w0x0) {
-        }
-        else {
+        } else {
             if (meta.m.op >> 4 == 8w1) {
                 if (meta.m.op & 8w0xf == 8w1) {
                     op2_t_push_1.apply();
-                }
-                else {
+                } else {
                     if (meta.m.op & 8w0xf == 8w2) {
                         op2_t_push_2.apply();
-                    }
-                    else {
+                    } else {
                         if (meta.m.op & 8w0xf == 8w3) {
                             op2_t_push_3.apply();
-                        }
-                        else {
+                        } else {
                             if (meta.m.op & 8w0xf == 8w4) {
                                 op2_t_push_4.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w5) {
                                     op2_t_push_5.apply();
                                 }
@@ -769,25 +740,20 @@ control op2_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                         }
                     }
                 }
-            }
-            else {
+            } else {
                 if (meta.m.op >> 4 == 8w2) {
                     if (meta.m.op & 8w0xf == 8w1) {
                         op2_t_pop_1.apply();
-                    }
-                    else {
+                    } else {
                         if (meta.m.op & 8w0xf == 8w2) {
                             op2_t_pop_2.apply();
-                        }
-                        else {
+                        } else {
                             if (meta.m.op & 8w0xf == 8w3) {
                                 op2_t_pop_3.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w4) {
                                     op2_t_pop_4.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w5) {
                                         op2_t_pop_5.apply();
                                     }
@@ -795,25 +761,20 @@ control op2_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                             }
                         }
                     }
-                }
-                else {
+                } else {
                     if (meta.m.op >> 4 == 8w3) {
                         if (meta.m.op & 8w0xf == 8w0) {
                             op2_t_assign_header_0.apply();
-                        }
-                        else {
+                        } else {
                             if (meta.m.op & 8w0xf == 8w1) {
                                 op2_t_assign_header_1.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w2) {
                                     op2_t_assign_header_2.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w3) {
                                         op2_t_assign_header_3.apply();
-                                    }
-                                    else {
+                                    } else {
                                         if (meta.m.op & 8w0xf == 8w4) {
                                             op2_t_assign_header_4.apply();
                                         }
@@ -821,25 +782,20 @@ control op2_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                                 }
                             }
                         }
-                    }
-                    else {
+                    } else {
                         if (meta.m.op >> 4 == 8w4) {
                             if (meta.m.op & 8w0xf == 8w0) {
                                 op2_t_remove_header_0.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w1) {
                                     op2_t_remove_header_1.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w2) {
                                         op2_t_remove_header_2.apply();
-                                    }
-                                    else {
+                                    } else {
                                         if (meta.m.op & 8w0xf == 8w3) {
                                             op2_t_remove_header_3.apply();
-                                        }
-                                        else {
+                                        } else {
                                             if (meta.m.op & 8w0xf == 8w4) {
                                                 op2_t_remove_header_4.apply();
                                             }
@@ -847,25 +803,20 @@ control op2_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                                     }
                                 }
                             }
-                        }
-                        else {
+                        } else {
                             if (meta.m.op >> 4 == 8w5) {
                                 if (meta.m.op & 8w0xf == 8w0) {
                                     op2_t_add_header_0.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w1) {
                                         op2_t_add_header_1.apply();
-                                    }
-                                    else {
+                                    } else {
                                         if (meta.m.op & 8w0xf == 8w2) {
                                             op2_t_add_header_2.apply();
-                                        }
-                                        else {
+                                        } else {
                                             if (meta.m.op & 8w0xf == 8w3) {
                                                 op2_t_add_header_3.apply();
-                                            }
-                                            else {
+                                            } else {
                                                 if (meta.m.op & 8w0xf == 8w4) {
                                                     op2_t_add_header_4.apply();
                                                 }
@@ -1150,25 +1101,20 @@ control op3_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
     }
     apply {
         if (meta.m.op == 8w0x0) {
-        }
-        else {
+        } else {
             if (meta.m.op >> 4 == 8w1) {
                 if (meta.m.op & 8w0xf == 8w1) {
                     op3_t_push_1.apply();
-                }
-                else {
+                } else {
                     if (meta.m.op & 8w0xf == 8w2) {
                         op3_t_push_2.apply();
-                    }
-                    else {
+                    } else {
                         if (meta.m.op & 8w0xf == 8w3) {
                             op3_t_push_3.apply();
-                        }
-                        else {
+                        } else {
                             if (meta.m.op & 8w0xf == 8w4) {
                                 op3_t_push_4.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w5) {
                                     op3_t_push_5.apply();
                                 }
@@ -1176,25 +1122,20 @@ control op3_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                         }
                     }
                 }
-            }
-            else {
+            } else {
                 if (meta.m.op >> 4 == 8w2) {
                     if (meta.m.op & 8w0xf == 8w1) {
                         op3_t_pop_1.apply();
-                    }
-                    else {
+                    } else {
                         if (meta.m.op & 8w0xf == 8w2) {
                             op3_t_pop_2.apply();
-                        }
-                        else {
+                        } else {
                             if (meta.m.op & 8w0xf == 8w3) {
                                 op3_t_pop_3.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w4) {
                                     op3_t_pop_4.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w5) {
                                         op3_t_pop_5.apply();
                                     }
@@ -1202,25 +1143,20 @@ control op3_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                             }
                         }
                     }
-                }
-                else {
+                } else {
                     if (meta.m.op >> 4 == 8w3) {
                         if (meta.m.op & 8w0xf == 8w0) {
                             op3_t_assign_header_0.apply();
-                        }
-                        else {
+                        } else {
                             if (meta.m.op & 8w0xf == 8w1) {
                                 op3_t_assign_header_1.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w2) {
                                     op3_t_assign_header_2.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w3) {
                                         op3_t_assign_header_3.apply();
-                                    }
-                                    else {
+                                    } else {
                                         if (meta.m.op & 8w0xf == 8w4) {
                                             op3_t_assign_header_4.apply();
                                         }
@@ -1228,25 +1164,20 @@ control op3_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                                 }
                             }
                         }
-                    }
-                    else {
+                    } else {
                         if (meta.m.op >> 4 == 8w4) {
                             if (meta.m.op & 8w0xf == 8w0) {
                                 op3_t_remove_header_0.apply();
-                            }
-                            else {
+                            } else {
                                 if (meta.m.op & 8w0xf == 8w1) {
                                     op3_t_remove_header_1.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w2) {
                                         op3_t_remove_header_2.apply();
-                                    }
-                                    else {
+                                    } else {
                                         if (meta.m.op & 8w0xf == 8w3) {
                                             op3_t_remove_header_3.apply();
-                                        }
-                                        else {
+                                        } else {
                                             if (meta.m.op & 8w0xf == 8w4) {
                                                 op3_t_remove_header_4.apply();
                                             }
@@ -1254,25 +1185,20 @@ control op3_do(inout headers hdr, inout metadata meta, inout standard_metadata_t
                                     }
                                 }
                             }
-                        }
-                        else {
+                        } else {
                             if (meta.m.op >> 4 == 8w5) {
                                 if (meta.m.op & 8w0xf == 8w0) {
                                     op3_t_add_header_0.apply();
-                                }
-                                else {
+                                } else {
                                     if (meta.m.op & 8w0xf == 8w1) {
                                         op3_t_add_header_1.apply();
-                                    }
-                                    else {
+                                    } else {
                                         if (meta.m.op & 8w0xf == 8w2) {
                                             op3_t_add_header_2.apply();
-                                        }
-                                        else {
+                                        } else {
                                             if (meta.m.op & 8w0xf == 8w3) {
                                                 op3_t_add_header_3.apply();
-                                            }
-                                            else {
+                                            } else {
                                                 if (meta.m.op & 8w0xf == 8w4) {
                                                     op3_t_add_header_4.apply();
                                                 }

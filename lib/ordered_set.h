@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef P4C_LIB_ORDERED_SET_H_
-#define P4C_LIB_ORDERED_SET_H_
+#ifndef _LIB_ORDERED_SET_H_
+#define _LIB_ORDERED_SET_H_
 
 #include <functional>
 #include <initializer_list>
@@ -24,7 +24,7 @@ limitations under the License.
 #include <set>
 #include <utility>
 
-// Remembers items intertion order
+// Remembers items in insertion order
 template <class T, class COMP = std::less<T>, class ALLOC = std::allocator<T>>
 class ordered_set {
  public:
@@ -68,6 +68,21 @@ class ordered_set {
 
  public:
     typedef typename map_type::size_type        size_type;
+    class sorted_iterator : public std::iterator<std::bidirectional_iterator_tag, T> {
+        friend class ordered_set;
+        typename map_type::const_iterator       iter;
+        sorted_iterator(typename map_type::const_iterator it)    // NOLINT(runtime/explicit)
+        : iter(it) {}
+     public:
+        const T &operator*() const { return *iter->first; }
+        const T *operator->() const { return iter->first; }
+        sorted_iterator operator++() { ++iter; return *this; }
+        sorted_iterator operator--() { --iter; return *this; }
+        sorted_iterator operator++(int) { auto copy = *this; ++iter; return copy; }
+        sorted_iterator operator--(int) { auto copy = *this; --iter; return copy; }
+        bool operator==(const sorted_iterator i) const { return iter == i.iter; }
+        bool operator!=(const sorted_iterator i) const { return iter != i.iter; }
+    };
 
     ordered_set() {}
     ordered_set(const ordered_set &a) : data(a.data) { init_data_map(); }
@@ -77,6 +92,18 @@ class ordered_set {
     ordered_set &operator=(ordered_set &&a) = default; /* move is ok? */
     bool operator==(const ordered_set &a) const { return data == a.data; }
     bool operator!=(const ordered_set &a) const { return data != a.data; }
+    bool operator<(const ordered_set &a) const {
+        // we define this to work INDEPENDENT of the order -- so it is possible to have
+        // two ordered_sets where !(a < b) && !(b < a) && !(a == b) -- such sets have the
+        // same elements but in a different order.  This is generally what you want if you
+        // have a set of ordered_sets (or use ordered_set as a map key).
+        auto it = a.data_map.begin();
+        for (auto &el : data_map) {
+            if (it == a.data_map.end()) return true;
+            if (mapcmp()(el.first, it->first)) return true;
+            if (mapcmp()(it->first, el.first)) return false;
+            ++it; }
+        return false; }
 
     // FIXME add allocator and comparator ctors...
 
@@ -92,6 +119,11 @@ class ordered_set {
     const_iterator              cend() const noexcept { return data.cend(); }
     const_reverse_iterator      crbegin() const noexcept { return data.crbegin(); }
     const_reverse_iterator      crend() const noexcept { return data.crend(); }
+    sorted_iterator             sorted_begin() const noexcept { return data_map.begin(); }
+    sorted_iterator             sorted_end() const noexcept { return data_map.end(); }
+
+    reference front() const noexcept { return *data.begin(); }
+    reference back() const noexcept { return *data.rbegin(); }
 
     bool        empty() const noexcept { return data.empty(); }
     size_type   size() const noexcept { return data_map.size(); }
@@ -124,6 +156,37 @@ class ordered_set {
         for (auto it = begin; it != end; ++it)
             insert(*it);
     }
+    iterator insert(const_iterator pos, const T &v) {
+        auto it = find(v);
+        if (it == data.end()) {
+            it = data.insert(pos, v);
+            data_map.emplace(&*it, it);
+            return it; }
+        return it;
+    }
+    iterator insert(const_iterator pos, T &&v) {
+        auto it = find(v);
+        if (it == data.end()) {
+            it = data.insert(pos, std::move(v));
+            data_map.emplace(&*it, it);
+            return it; }
+        return it;
+    }
+
+    void push_back(const T &v) {
+        auto it = find(v);
+        if (it == data.end()) {
+            it = data.insert(data.end(), v);
+            data_map.emplace(&*it, it);
+        } else {
+            data.splice(data.end(), data, it); } }
+    void push_back(T &&v) {
+        auto it = find(v);
+        if (it == data.end()) {
+            it = data.insert(data.end(), std::move(v));
+            data_map.emplace(&*it, it);
+        } else {
+            data.splice(data.end(), data, it); } }
 
     template <class... Args>
     std::pair<iterator, bool> emplace(Args &&... args) {
@@ -135,6 +198,15 @@ class ordered_set {
         } else {
             data.erase(it);
             return std::make_pair(old, false); } }
+
+    template <class... Args>
+    std::pair<iterator, bool> emplace_back(Args &&... args) {
+        auto it = data.emplace(data.end(), std::forward<Args>(args)...);
+        auto old = find(*it);
+        if (old != data.end()) {
+            data.erase(old); }
+        data_map.emplace(&*it, it);
+        return std::make_pair(it, true); }
 
     /* should be erase(const_iterator), but glibc++ std::list::erase is broken */
     iterator erase(iterator pos) {
@@ -167,12 +239,12 @@ auto operator&=(ordered_set<T, C1, A1> &a, U &b) -> decltype(b.begin(), a) {
     return a; }
 
 template<class T, class C1, class A1, class U> inline
-auto contains(ordered_set<T, C1, A1> &a, U &b) -> decltype(b.begin(), true) {
+auto contains(const ordered_set<T, C1, A1> &a, const U &b) -> decltype(b.begin(), true) {
     for (auto &el : b) if (!a.count(el)) return false;
     return true; }
 template<class T, class C1, class A1, class U> inline
-auto intersects(ordered_set<T, C1, A1> &a, U &b) -> decltype(b.begin(), true) {
+auto intersects(const ordered_set<T, C1, A1> &a, const U &b) -> decltype(b.begin(), true) {
     for (auto &el : b) if (a.count(el)) return true;
     return false; }
 
-#endif /* P4C_LIB_ORDERED_SET_H_ */
+#endif /* _LIB_ORDERED_SET_H_ */

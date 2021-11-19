@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<48> EthernetAddress;
@@ -37,11 +38,11 @@ parser IngressParserImpl(packet_in buffer, out headers hdr, inout metadata user_
 }
 
 control ingress(inout headers hdr, inout metadata user_meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    bit<16> tmp_0;
-    bit<32> x1_0;
-    bit<16> x2_0;
+    @name("ingress.tmp") bit<16> tmp_0;
+    @name("ingress.x1") bit<32> x1_0;
+    @name("ingress.x2") bit<16> x2_0;
     @name("ingress.debug_table_cksum1") table debug_table_cksum1_0 {
         key = {
             hdr.ethernet.srcAddr            : exact @name("hdr.ethernet.srcAddr") ;
@@ -78,16 +79,21 @@ control ingress(inout headers hdr, inout metadata user_meta, inout standard_meta
         user_meta.fwd_meta.exp_x3 = 32w0xf7ff;
         user_meta.fwd_meta.exp_x4 = 32w0xfffff7ff;
         hdr.ethernet.dstAddr = 48w0;
-        if (hdr.ethernet.etherType != user_meta.fwd_meta.exp_etherType) 
+        if (hdr.ethernet.etherType != user_meta.fwd_meta.exp_etherType) {
             hdr.ethernet.dstAddr[47:40] = 8w1;
-        if (user_meta.fwd_meta.x1 != user_meta.fwd_meta.exp_x1) 
+        }
+        if (user_meta.fwd_meta.x1 != user_meta.fwd_meta.exp_x1) {
             hdr.ethernet.dstAddr[39:32] = 8w1;
-        if (user_meta.fwd_meta.x2 != user_meta.fwd_meta.exp_x2) 
+        }
+        if (user_meta.fwd_meta.x2 != user_meta.fwd_meta.exp_x2) {
             hdr.ethernet.dstAddr[31:24] = 8w1;
-        if (user_meta.fwd_meta.x3 != user_meta.fwd_meta.exp_x3) 
+        }
+        if (user_meta.fwd_meta.x3 != user_meta.fwd_meta.exp_x3) {
             hdr.ethernet.dstAddr[23:16] = 8w1;
-        if (user_meta.fwd_meta.x4 != user_meta.fwd_meta.exp_x4) 
+        }
+        if (user_meta.fwd_meta.x4 != user_meta.fwd_meta.exp_x4) {
             hdr.ethernet.dstAddr[15:8] = 8w1;
+        }
         debug_table_cksum1_0.apply();
     }
 }

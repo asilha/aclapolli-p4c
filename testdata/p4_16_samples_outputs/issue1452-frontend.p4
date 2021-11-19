@@ -1,7 +1,7 @@
 control c() {
-    bit<32> x_0;
-    @name("c.a") action a(inout bit<32> arg) {
-        bool hasReturned = false;
+    @name("c.x") bit<32> x_0;
+    @name("c.a") action a(@name("arg") inout bit<32> arg) {
+        @name("c.hasReturned") bool hasReturned = false;
         arg = 32w1;
         hasReturned = true;
     }

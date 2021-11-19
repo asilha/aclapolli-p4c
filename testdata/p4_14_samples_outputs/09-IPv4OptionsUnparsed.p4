@@ -16,6 +16,7 @@ header ipv4_t_1 {
 }
 
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header ethernet_t {
@@ -39,7 +40,6 @@ header ipv4_t {
     bit<16>     hdrChecksum;
     bit<32>     srcAddr;
     bit<32>     dstAddr;
-    @length((bit<32>)ihl * 32w4 * 8 - 160) 
     varbit<352> options;
 }
 

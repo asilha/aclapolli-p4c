@@ -4,13 +4,12 @@ header ipv4_option_timestamp_t_1 {
 }
 
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct intrinsic_metadata_t {
-    bit<4>  mcast_grp;
-    bit<4>  egress_rid;
-    bit<16> mcast_hash;
-    bit<32> lf_field_list;
+    bit<4> mcast_grp;
+    bit<4> egress_rid;
 }
 
 struct my_metadata_t {
@@ -47,7 +46,6 @@ header ipv4_option_security_t {
 header ipv4_option_timestamp_t {
     bit<8>      value;
     bit<8>      len;
-    @length((bit<32>)len * 8 - 16) 
     varbit<304> data;
 }
 
@@ -60,10 +58,8 @@ header ipv4_option_NOP_t {
 }
 
 struct metadata {
-    @name(".intrinsic_metadata") 
-    intrinsic_metadata_t intrinsic_metadata;
     @name(".my_metadata") 
-    my_metadata_t        my_metadata;
+    my_metadata_t my_metadata;
 }
 
 struct headers {

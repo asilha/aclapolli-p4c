@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -378,8 +379,119 @@ header vlan_tag_5b_t {
 }
 
 struct metadata {
-    @name(".ingress_metadata") 
-    ingress_metadata_t ingress_metadata;
+    bit<3>   _ingress_metadata_lkp_pkt_type0;
+    bit<48>  _ingress_metadata_lkp_mac_sa1;
+    bit<48>  _ingress_metadata_lkp_mac_da2;
+    bit<16>  _ingress_metadata_lkp_mac_type3;
+    bit<2>   _ingress_metadata_lkp_ip_type4;
+    bit<32>  _ingress_metadata_lkp_ipv4_sa5;
+    bit<32>  _ingress_metadata_lkp_ipv4_da6;
+    bit<128> _ingress_metadata_lkp_ipv6_sa7;
+    bit<128> _ingress_metadata_lkp_ipv6_da8;
+    bit<8>   _ingress_metadata_lkp_ip_proto9;
+    bit<8>   _ingress_metadata_lkp_ip_tc10;
+    bit<8>   _ingress_metadata_lkp_ip_ttl11;
+    bit<16>  _ingress_metadata_lkp_l4_sport12;
+    bit<16>  _ingress_metadata_lkp_l4_dport13;
+    bit<16>  _ingress_metadata_lkp_inner_l4_sport14;
+    bit<16>  _ingress_metadata_lkp_inner_l4_dport15;
+    bit<8>   _ingress_metadata_lkp_icmp_type16;
+    bit<8>   _ingress_metadata_lkp_icmp_code17;
+    bit<8>   _ingress_metadata_lkp_inner_icmp_type18;
+    bit<8>   _ingress_metadata_lkp_inner_icmp_code19;
+    bit<16>  _ingress_metadata_l3_length20;
+    bit<16>  _ingress_metadata_ifindex21;
+    bit<12>  _ingress_metadata_vrf22;
+    bit<4>   _ingress_metadata_tunnel_type23;
+    bit<1>   _ingress_metadata_tunnel_terminate24;
+    bit<24>  _ingress_metadata_tunnel_vni25;
+    bit<1>   _ingress_metadata_src_vtep_miss26;
+    bit<8>   _ingress_metadata_outer_bd27;
+    bit<1>   _ingress_metadata_outer_ipv4_mcast_key_type28;
+    bit<8>   _ingress_metadata_outer_ipv4_mcast_key29;
+    bit<1>   _ingress_metadata_outer_ipv6_mcast_key_type30;
+    bit<8>   _ingress_metadata_outer_ipv6_mcast_key31;
+    bit<1>   _ingress_metadata_outer_mcast_route_hit32;
+    bit<2>   _ingress_metadata_outer_mcast_mode33;
+    bit<8>   _ingress_metadata_outer_dscp34;
+    bit<8>   _ingress_metadata_outer_ttl35;
+    bit<1>   _ingress_metadata_outer_routed36;
+    bit<1>   _ingress_metadata_l2_multicast37;
+    bit<1>   _ingress_metadata_ip_multicast38;
+    bit<1>   _ingress_metadata_src_is_link_local39;
+    bit<16>  _ingress_metadata_bd40;
+    bit<1>   _ingress_metadata_ipsg_enabled41;
+    bit<1>   _ingress_metadata_ipv4_unicast_enabled42;
+    bit<1>   _ingress_metadata_ipv6_unicast_enabled43;
+    bit<2>   _ingress_metadata_ipv4_multicast_mode44;
+    bit<2>   _ingress_metadata_ipv6_multicast_mode45;
+    bit<1>   _ingress_metadata_igmp_snooping_enabled46;
+    bit<1>   _ingress_metadata_mld_snooping_enabled47;
+    bit<1>   _ingress_metadata_mpls_enabled48;
+    bit<20>  _ingress_metadata_mpls_label49;
+    bit<3>   _ingress_metadata_mpls_exp50;
+    bit<8>   _ingress_metadata_mpls_ttl51;
+    bit<2>   _ingress_metadata_ipv4_urpf_mode52;
+    bit<2>   _ingress_metadata_ipv6_urpf_mode53;
+    bit<2>   _ingress_metadata_urpf_mode54;
+    bit<2>   _ingress_metadata_nat_mode55;
+    bit<10>  _ingress_metadata_rmac_group56;
+    bit<1>   _ingress_metadata_rmac_hit57;
+    bit<1>   _ingress_metadata_mcast_route_hit58;
+    bit<1>   _ingress_metadata_mcast_bridge_hit59;
+    bit<16>  _ingress_metadata_bd_mrpf_group60;
+    bit<16>  _ingress_metadata_mcast_rpf_group61;
+    bit<2>   _ingress_metadata_mcast_mode62;
+    bit<16>  _ingress_metadata_uuc_mc_index63;
+    bit<16>  _ingress_metadata_umc_mc_index64;
+    bit<16>  _ingress_metadata_bcast_mc_index65;
+    bit<16>  _ingress_metadata_multicast_route_mc_index66;
+    bit<16>  _ingress_metadata_multicast_bridge_mc_index67;
+    bit<1>   _ingress_metadata_storm_control_color68;
+    bit<1>   _ingress_metadata_urpf_hit69;
+    bit<1>   _ingress_metadata_urpf_check_fail70;
+    bit<16>  _ingress_metadata_urpf_bd_group71;
+    bit<1>   _ingress_metadata_routed72;
+    bit<16>  _ingress_metadata_if_label73;
+    bit<16>  _ingress_metadata_bd_label74;
+    bit<1>   _ingress_metadata_l2_src_miss75;
+    bit<16>  _ingress_metadata_l2_src_move76;
+    bit<1>   _ingress_metadata_ipsg_check_fail77;
+    bit<1>   _ingress_metadata_acl_deny78;
+    bit<1>   _ingress_metadata_racl_deny79;
+    bit<1>   _ingress_metadata_l2_redirect80;
+    bit<1>   _ingress_metadata_acl_redirect81;
+    bit<1>   _ingress_metadata_racl_redirect82;
+    bit<1>   _ingress_metadata_fib_hit83;
+    bit<1>   _ingress_metadata_nat_hit84;
+    bit<10>  _ingress_metadata_mirror_session_id85;
+    bit<16>  _ingress_metadata_l2_nexthop86;
+    bit<16>  _ingress_metadata_acl_nexthop87;
+    bit<16>  _ingress_metadata_racl_nexthop88;
+    bit<16>  _ingress_metadata_fib_nexthop89;
+    bit<16>  _ingress_metadata_nat_nexthop90;
+    bit<1>   _ingress_metadata_l2_nexthop_type91;
+    bit<1>   _ingress_metadata_acl_nexthop_type92;
+    bit<1>   _ingress_metadata_racl_nexthop_type93;
+    bit<1>   _ingress_metadata_fib_nexthop_type94;
+    bit<16>  _ingress_metadata_nexthop_index95;
+    bit<1>   _ingress_metadata_nexthop_type96;
+    bit<16>  _ingress_metadata_nat_rewrite_index97;
+    bit<3>   _ingress_metadata_marked_cos98;
+    bit<8>   _ingress_metadata_marked_dscp99;
+    bit<3>   _ingress_metadata_marked_exp100;
+    bit<8>   _ingress_metadata_ttl101;
+    bit<16>  _ingress_metadata_egress_ifindex102;
+    bit<16>  _ingress_metadata_egress_bd103;
+    bit<16>  _ingress_metadata_same_bd_check104;
+    bit<1>   _ingress_metadata_ingress_bypass105;
+    bit<24>  _ingress_metadata_ipv4_dstaddr_24b106;
+    bit<1>   _ingress_metadata_drop_0107;
+    bit<8>   _ingress_metadata_drop_reason108;
+    bit<10>  _ingress_metadata_stp_group109;
+    bit<3>   _ingress_metadata_stp_state110;
+    bit<1>   _ingress_metadata_control_frame111;
+    bit<4>   _ingress_metadata_header_count112;
 }
 
 struct headers {
@@ -474,8 +586,8 @@ struct headers {
 }
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    bit<24> tmp;
-    bit<4> tmp_0;
+    @name("ParserImpl.tmp_0") bit<24> tmp_0;
+    @name("ParserImpl.tmp_2") bit<4> tmp_2;
     @name(".parse_arp_rarp") state parse_arp_rarp {
         packet.extract<arp_rarp_t>(hdr.arp_rarp);
         transition select(hdr.arp_rarp.protoType) {
@@ -641,8 +753,8 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
         }
     }
     @name(".parse_mpls") state parse_mpls {
-        tmp = packet.lookahead<bit<24>>();
-        transition select(tmp[0:0]) {
+        tmp_0 = packet.lookahead<bit<24>>();
+        transition select(tmp_0[0:0]) {
             1w0: parse_mpls_not_bos;
             1w1: parse_mpls_bos;
             default: accept;
@@ -650,8 +762,8 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
     }
     @name(".parse_mpls_bos") state parse_mpls_bos {
         packet.extract<mpls_t>(hdr.mpls_bos);
-        tmp_0 = packet.lookahead<bit<4>>();
-        transition select(tmp_0[3:0]) {
+        tmp_2 = packet.lookahead<bit<4>>();
+        transition select(tmp_2) {
             4w0x4: parse_inner_ipv4;
             4w0x6: parse_inner_ipv6;
             default: parse_eompls;
@@ -727,115 +839,115 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 @name(".outer_bd_action_profile") action_profile(32w256) outer_bd_action_profile;
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".set_bd") action set_bd(bit<16> outer_vlan_bd, bit<12> vrf, bit<10> rmac_group, bit<16> bd_label, bit<16> uuc_mc_index, bit<16> bcast_mc_index, bit<16> umc_mc_index, bit<1> ipv4_unicast_enabled, bit<1> igmp_snooping_enabled, bit<10> stp_group) {
-        meta.ingress_metadata.vrf = vrf;
-        meta.ingress_metadata.ipv4_unicast_enabled = ipv4_unicast_enabled;
-        meta.ingress_metadata.igmp_snooping_enabled = igmp_snooping_enabled;
-        meta.ingress_metadata.rmac_group = rmac_group;
-        meta.ingress_metadata.uuc_mc_index = uuc_mc_index;
-        meta.ingress_metadata.umc_mc_index = umc_mc_index;
-        meta.ingress_metadata.bcast_mc_index = bcast_mc_index;
-        meta.ingress_metadata.bd_label = bd_label;
-        meta.ingress_metadata.bd = outer_vlan_bd;
-        meta.ingress_metadata.stp_group = stp_group;
+    @name(".set_bd") action set_bd(@name("outer_vlan_bd") bit<16> outer_vlan_bd, @name("vrf") bit<12> vrf_5, @name("rmac_group") bit<10> rmac_group_5, @name("bd_label") bit<16> bd_label_5, @name("uuc_mc_index") bit<16> uuc_mc_index_5, @name("bcast_mc_index") bit<16> bcast_mc_index_5, @name("umc_mc_index") bit<16> umc_mc_index_5, @name("ipv4_unicast_enabled") bit<1> ipv4_unicast_enabled_5, @name("igmp_snooping_enabled") bit<1> igmp_snooping_enabled_5, @name("stp_group") bit<10> stp_group_5) {
+        meta._ingress_metadata_vrf22 = vrf_5;
+        meta._ingress_metadata_ipv4_unicast_enabled42 = ipv4_unicast_enabled_5;
+        meta._ingress_metadata_igmp_snooping_enabled46 = igmp_snooping_enabled_5;
+        meta._ingress_metadata_rmac_group56 = rmac_group_5;
+        meta._ingress_metadata_uuc_mc_index63 = uuc_mc_index_5;
+        meta._ingress_metadata_umc_mc_index64 = umc_mc_index_5;
+        meta._ingress_metadata_bcast_mc_index65 = bcast_mc_index_5;
+        meta._ingress_metadata_bd_label74 = bd_label_5;
+        meta._ingress_metadata_bd40 = outer_vlan_bd;
+        meta._ingress_metadata_stp_group109 = stp_group_5;
     }
-    @name(".set_outer_bd_ipv4_mcast_switch_ipv6_mcast_switch_flags") action set_outer_bd_ipv4_mcast_switch_ipv6_mcast_switch_flags(bit<16> bd, bit<12> vrf, bit<10> rmac_group, bit<16> mrpf_group, bit<16> bd_label, bit<16> uuc_mc_index, bit<16> bcast_mc_index, bit<16> umc_mc_index, bit<1> ipv4_unicast_enabled, bit<1> ipv6_unicast_enabled, bit<2> ipv4_multicast_mode, bit<2> ipv6_multicast_mode, bit<1> igmp_snooping_enabled, bit<1> mld_snooping_enabled, bit<2> ipv4_urpf_mode, bit<2> ipv6_urpf_mode, bit<10> stp_group) {
-        meta.ingress_metadata.vrf = vrf;
-        meta.ingress_metadata.bd = bd;
-        meta.ingress_metadata.outer_bd = (bit<8>)bd;
-        meta.ingress_metadata.outer_ipv4_mcast_key_type = 1w0;
-        meta.ingress_metadata.outer_ipv4_mcast_key = (bit<8>)bd;
-        meta.ingress_metadata.outer_ipv6_mcast_key_type = 1w0;
-        meta.ingress_metadata.outer_ipv6_mcast_key = (bit<8>)bd;
-        meta.ingress_metadata.ipv4_unicast_enabled = ipv4_unicast_enabled;
-        meta.ingress_metadata.ipv6_unicast_enabled = ipv6_unicast_enabled;
-        meta.ingress_metadata.ipv4_multicast_mode = ipv4_multicast_mode;
-        meta.ingress_metadata.ipv6_multicast_mode = ipv6_multicast_mode;
-        meta.ingress_metadata.igmp_snooping_enabled = igmp_snooping_enabled;
-        meta.ingress_metadata.mld_snooping_enabled = mld_snooping_enabled;
-        meta.ingress_metadata.ipv4_urpf_mode = ipv4_urpf_mode;
-        meta.ingress_metadata.ipv6_urpf_mode = ipv6_urpf_mode;
-        meta.ingress_metadata.rmac_group = rmac_group;
-        meta.ingress_metadata.bd_mrpf_group = mrpf_group;
-        meta.ingress_metadata.uuc_mc_index = uuc_mc_index;
-        meta.ingress_metadata.umc_mc_index = umc_mc_index;
-        meta.ingress_metadata.bcast_mc_index = bcast_mc_index;
-        meta.ingress_metadata.bd_label = bd_label;
-        meta.ingress_metadata.stp_group = stp_group;
+    @name(".set_outer_bd_ipv4_mcast_switch_ipv6_mcast_switch_flags") action set_outer_bd_ipv4_mcast_switch_ipv6_mcast_switch_flags(@name("bd") bit<16> bd_4, @name("vrf") bit<12> vrf_6, @name("rmac_group") bit<10> rmac_group_6, @name("mrpf_group") bit<16> mrpf_group, @name("bd_label") bit<16> bd_label_6, @name("uuc_mc_index") bit<16> uuc_mc_index_6, @name("bcast_mc_index") bit<16> bcast_mc_index_6, @name("umc_mc_index") bit<16> umc_mc_index_6, @name("ipv4_unicast_enabled") bit<1> ipv4_unicast_enabled_6, @name("ipv6_unicast_enabled") bit<1> ipv6_unicast_enabled_4, @name("ipv4_multicast_mode") bit<2> ipv4_multicast_mode_4, @name("ipv6_multicast_mode") bit<2> ipv6_multicast_mode_4, @name("igmp_snooping_enabled") bit<1> igmp_snooping_enabled_6, @name("mld_snooping_enabled") bit<1> mld_snooping_enabled_4, @name("ipv4_urpf_mode") bit<2> ipv4_urpf_mode_4, @name("ipv6_urpf_mode") bit<2> ipv6_urpf_mode_4, @name("stp_group") bit<10> stp_group_6) {
+        meta._ingress_metadata_vrf22 = vrf_6;
+        meta._ingress_metadata_bd40 = bd_4;
+        meta._ingress_metadata_outer_bd27 = (bit<8>)bd_4;
+        meta._ingress_metadata_outer_ipv4_mcast_key_type28 = 1w0;
+        meta._ingress_metadata_outer_ipv4_mcast_key29 = (bit<8>)bd_4;
+        meta._ingress_metadata_outer_ipv6_mcast_key_type30 = 1w0;
+        meta._ingress_metadata_outer_ipv6_mcast_key31 = (bit<8>)bd_4;
+        meta._ingress_metadata_ipv4_unicast_enabled42 = ipv4_unicast_enabled_6;
+        meta._ingress_metadata_ipv6_unicast_enabled43 = ipv6_unicast_enabled_4;
+        meta._ingress_metadata_ipv4_multicast_mode44 = ipv4_multicast_mode_4;
+        meta._ingress_metadata_ipv6_multicast_mode45 = ipv6_multicast_mode_4;
+        meta._ingress_metadata_igmp_snooping_enabled46 = igmp_snooping_enabled_6;
+        meta._ingress_metadata_mld_snooping_enabled47 = mld_snooping_enabled_4;
+        meta._ingress_metadata_ipv4_urpf_mode52 = ipv4_urpf_mode_4;
+        meta._ingress_metadata_ipv6_urpf_mode53 = ipv6_urpf_mode_4;
+        meta._ingress_metadata_rmac_group56 = rmac_group_6;
+        meta._ingress_metadata_bd_mrpf_group60 = mrpf_group;
+        meta._ingress_metadata_uuc_mc_index63 = uuc_mc_index_6;
+        meta._ingress_metadata_umc_mc_index64 = umc_mc_index_6;
+        meta._ingress_metadata_bcast_mc_index65 = bcast_mc_index_6;
+        meta._ingress_metadata_bd_label74 = bd_label_6;
+        meta._ingress_metadata_stp_group109 = stp_group_6;
     }
-    @name(".set_outer_bd_ipv4_mcast_switch_ipv6_mcast_route_flags") action set_outer_bd_ipv4_mcast_switch_ipv6_mcast_route_flags(bit<16> bd, bit<12> vrf, bit<10> rmac_group, bit<16> mrpf_group, bit<16> bd_label, bit<16> uuc_mc_index, bit<16> bcast_mc_index, bit<16> umc_mc_index, bit<1> ipv4_unicast_enabled, bit<1> ipv6_unicast_enabled, bit<2> ipv4_multicast_mode, bit<2> ipv6_multicast_mode, bit<1> igmp_snooping_enabled, bit<1> mld_snooping_enabled, bit<2> ipv4_urpf_mode, bit<2> ipv6_urpf_mode, bit<10> stp_group) {
-        meta.ingress_metadata.vrf = vrf;
-        meta.ingress_metadata.bd = bd;
-        meta.ingress_metadata.outer_bd = (bit<8>)bd;
-        meta.ingress_metadata.outer_ipv4_mcast_key_type = 1w0;
-        meta.ingress_metadata.outer_ipv4_mcast_key = (bit<8>)bd;
-        meta.ingress_metadata.outer_ipv6_mcast_key_type = 1w1;
-        meta.ingress_metadata.outer_ipv6_mcast_key = (bit<8>)vrf;
-        meta.ingress_metadata.ipv4_unicast_enabled = ipv4_unicast_enabled;
-        meta.ingress_metadata.ipv6_unicast_enabled = ipv6_unicast_enabled;
-        meta.ingress_metadata.ipv4_multicast_mode = ipv4_multicast_mode;
-        meta.ingress_metadata.ipv6_multicast_mode = ipv6_multicast_mode;
-        meta.ingress_metadata.igmp_snooping_enabled = igmp_snooping_enabled;
-        meta.ingress_metadata.mld_snooping_enabled = mld_snooping_enabled;
-        meta.ingress_metadata.ipv4_urpf_mode = ipv4_urpf_mode;
-        meta.ingress_metadata.ipv6_urpf_mode = ipv6_urpf_mode;
-        meta.ingress_metadata.rmac_group = rmac_group;
-        meta.ingress_metadata.bd_mrpf_group = mrpf_group;
-        meta.ingress_metadata.uuc_mc_index = uuc_mc_index;
-        meta.ingress_metadata.umc_mc_index = umc_mc_index;
-        meta.ingress_metadata.bcast_mc_index = bcast_mc_index;
-        meta.ingress_metadata.bd_label = bd_label;
-        meta.ingress_metadata.stp_group = stp_group;
+    @name(".set_outer_bd_ipv4_mcast_switch_ipv6_mcast_route_flags") action set_outer_bd_ipv4_mcast_switch_ipv6_mcast_route_flags(@name("bd") bit<16> bd_5, @name("vrf") bit<12> vrf_7, @name("rmac_group") bit<10> rmac_group_7, @name("mrpf_group") bit<16> mrpf_group_4, @name("bd_label") bit<16> bd_label_7, @name("uuc_mc_index") bit<16> uuc_mc_index_7, @name("bcast_mc_index") bit<16> bcast_mc_index_7, @name("umc_mc_index") bit<16> umc_mc_index_7, @name("ipv4_unicast_enabled") bit<1> ipv4_unicast_enabled_7, @name("ipv6_unicast_enabled") bit<1> ipv6_unicast_enabled_5, @name("ipv4_multicast_mode") bit<2> ipv4_multicast_mode_5, @name("ipv6_multicast_mode") bit<2> ipv6_multicast_mode_5, @name("igmp_snooping_enabled") bit<1> igmp_snooping_enabled_7, @name("mld_snooping_enabled") bit<1> mld_snooping_enabled_5, @name("ipv4_urpf_mode") bit<2> ipv4_urpf_mode_5, @name("ipv6_urpf_mode") bit<2> ipv6_urpf_mode_5, @name("stp_group") bit<10> stp_group_7) {
+        meta._ingress_metadata_vrf22 = vrf_7;
+        meta._ingress_metadata_bd40 = bd_5;
+        meta._ingress_metadata_outer_bd27 = (bit<8>)bd_5;
+        meta._ingress_metadata_outer_ipv4_mcast_key_type28 = 1w0;
+        meta._ingress_metadata_outer_ipv4_mcast_key29 = (bit<8>)bd_5;
+        meta._ingress_metadata_outer_ipv6_mcast_key_type30 = 1w1;
+        meta._ingress_metadata_outer_ipv6_mcast_key31 = (bit<8>)vrf_7;
+        meta._ingress_metadata_ipv4_unicast_enabled42 = ipv4_unicast_enabled_7;
+        meta._ingress_metadata_ipv6_unicast_enabled43 = ipv6_unicast_enabled_5;
+        meta._ingress_metadata_ipv4_multicast_mode44 = ipv4_multicast_mode_5;
+        meta._ingress_metadata_ipv6_multicast_mode45 = ipv6_multicast_mode_5;
+        meta._ingress_metadata_igmp_snooping_enabled46 = igmp_snooping_enabled_7;
+        meta._ingress_metadata_mld_snooping_enabled47 = mld_snooping_enabled_5;
+        meta._ingress_metadata_ipv4_urpf_mode52 = ipv4_urpf_mode_5;
+        meta._ingress_metadata_ipv6_urpf_mode53 = ipv6_urpf_mode_5;
+        meta._ingress_metadata_rmac_group56 = rmac_group_7;
+        meta._ingress_metadata_bd_mrpf_group60 = mrpf_group_4;
+        meta._ingress_metadata_uuc_mc_index63 = uuc_mc_index_7;
+        meta._ingress_metadata_umc_mc_index64 = umc_mc_index_7;
+        meta._ingress_metadata_bcast_mc_index65 = bcast_mc_index_7;
+        meta._ingress_metadata_bd_label74 = bd_label_7;
+        meta._ingress_metadata_stp_group109 = stp_group_7;
     }
-    @name(".set_outer_bd_ipv4_mcast_route_ipv6_mcast_switch_flags") action set_outer_bd_ipv4_mcast_route_ipv6_mcast_switch_flags(bit<16> bd, bit<12> vrf, bit<10> rmac_group, bit<16> mrpf_group, bit<16> bd_label, bit<16> uuc_mc_index, bit<16> bcast_mc_index, bit<16> umc_mc_index, bit<1> ipv4_unicast_enabled, bit<1> ipv6_unicast_enabled, bit<2> ipv4_multicast_mode, bit<2> ipv6_multicast_mode, bit<1> igmp_snooping_enabled, bit<1> mld_snooping_enabled, bit<2> ipv4_urpf_mode, bit<2> ipv6_urpf_mode, bit<10> stp_group) {
-        meta.ingress_metadata.vrf = vrf;
-        meta.ingress_metadata.bd = bd;
-        meta.ingress_metadata.outer_bd = (bit<8>)bd;
-        meta.ingress_metadata.outer_ipv4_mcast_key_type = 1w1;
-        meta.ingress_metadata.outer_ipv4_mcast_key = (bit<8>)vrf;
-        meta.ingress_metadata.outer_ipv6_mcast_key_type = 1w0;
-        meta.ingress_metadata.outer_ipv6_mcast_key = (bit<8>)bd;
-        meta.ingress_metadata.ipv4_unicast_enabled = ipv4_unicast_enabled;
-        meta.ingress_metadata.ipv6_unicast_enabled = ipv6_unicast_enabled;
-        meta.ingress_metadata.ipv4_multicast_mode = ipv4_multicast_mode;
-        meta.ingress_metadata.ipv6_multicast_mode = ipv6_multicast_mode;
-        meta.ingress_metadata.igmp_snooping_enabled = igmp_snooping_enabled;
-        meta.ingress_metadata.mld_snooping_enabled = mld_snooping_enabled;
-        meta.ingress_metadata.ipv4_urpf_mode = ipv4_urpf_mode;
-        meta.ingress_metadata.ipv6_urpf_mode = ipv6_urpf_mode;
-        meta.ingress_metadata.rmac_group = rmac_group;
-        meta.ingress_metadata.bd_mrpf_group = mrpf_group;
-        meta.ingress_metadata.uuc_mc_index = uuc_mc_index;
-        meta.ingress_metadata.umc_mc_index = umc_mc_index;
-        meta.ingress_metadata.bcast_mc_index = bcast_mc_index;
-        meta.ingress_metadata.bd_label = bd_label;
-        meta.ingress_metadata.stp_group = stp_group;
+    @name(".set_outer_bd_ipv4_mcast_route_ipv6_mcast_switch_flags") action set_outer_bd_ipv4_mcast_route_ipv6_mcast_switch_flags(@name("bd") bit<16> bd_6, @name("vrf") bit<12> vrf_8, @name("rmac_group") bit<10> rmac_group_8, @name("mrpf_group") bit<16> mrpf_group_5, @name("bd_label") bit<16> bd_label_8, @name("uuc_mc_index") bit<16> uuc_mc_index_8, @name("bcast_mc_index") bit<16> bcast_mc_index_8, @name("umc_mc_index") bit<16> umc_mc_index_8, @name("ipv4_unicast_enabled") bit<1> ipv4_unicast_enabled_8, @name("ipv6_unicast_enabled") bit<1> ipv6_unicast_enabled_6, @name("ipv4_multicast_mode") bit<2> ipv4_multicast_mode_6, @name("ipv6_multicast_mode") bit<2> ipv6_multicast_mode_6, @name("igmp_snooping_enabled") bit<1> igmp_snooping_enabled_8, @name("mld_snooping_enabled") bit<1> mld_snooping_enabled_6, @name("ipv4_urpf_mode") bit<2> ipv4_urpf_mode_6, @name("ipv6_urpf_mode") bit<2> ipv6_urpf_mode_6, @name("stp_group") bit<10> stp_group_8) {
+        meta._ingress_metadata_vrf22 = vrf_8;
+        meta._ingress_metadata_bd40 = bd_6;
+        meta._ingress_metadata_outer_bd27 = (bit<8>)bd_6;
+        meta._ingress_metadata_outer_ipv4_mcast_key_type28 = 1w1;
+        meta._ingress_metadata_outer_ipv4_mcast_key29 = (bit<8>)vrf_8;
+        meta._ingress_metadata_outer_ipv6_mcast_key_type30 = 1w0;
+        meta._ingress_metadata_outer_ipv6_mcast_key31 = (bit<8>)bd_6;
+        meta._ingress_metadata_ipv4_unicast_enabled42 = ipv4_unicast_enabled_8;
+        meta._ingress_metadata_ipv6_unicast_enabled43 = ipv6_unicast_enabled_6;
+        meta._ingress_metadata_ipv4_multicast_mode44 = ipv4_multicast_mode_6;
+        meta._ingress_metadata_ipv6_multicast_mode45 = ipv6_multicast_mode_6;
+        meta._ingress_metadata_igmp_snooping_enabled46 = igmp_snooping_enabled_8;
+        meta._ingress_metadata_mld_snooping_enabled47 = mld_snooping_enabled_6;
+        meta._ingress_metadata_ipv4_urpf_mode52 = ipv4_urpf_mode_6;
+        meta._ingress_metadata_ipv6_urpf_mode53 = ipv6_urpf_mode_6;
+        meta._ingress_metadata_rmac_group56 = rmac_group_8;
+        meta._ingress_metadata_bd_mrpf_group60 = mrpf_group_5;
+        meta._ingress_metadata_uuc_mc_index63 = uuc_mc_index_8;
+        meta._ingress_metadata_umc_mc_index64 = umc_mc_index_8;
+        meta._ingress_metadata_bcast_mc_index65 = bcast_mc_index_8;
+        meta._ingress_metadata_bd_label74 = bd_label_8;
+        meta._ingress_metadata_stp_group109 = stp_group_8;
     }
-    @name(".set_outer_bd_ipv4_mcast_route_ipv6_mcast_route_flags") action set_outer_bd_ipv4_mcast_route_ipv6_mcast_route_flags(bit<16> bd, bit<12> vrf, bit<10> rmac_group, bit<16> mrpf_group, bit<16> bd_label, bit<16> uuc_mc_index, bit<16> bcast_mc_index, bit<16> umc_mc_index, bit<1> ipv4_unicast_enabled, bit<1> ipv6_unicast_enabled, bit<2> ipv4_multicast_mode, bit<2> ipv6_multicast_mode, bit<1> igmp_snooping_enabled, bit<1> mld_snooping_enabled, bit<2> ipv4_urpf_mode, bit<2> ipv6_urpf_mode, bit<10> stp_group) {
-        meta.ingress_metadata.vrf = vrf;
-        meta.ingress_metadata.bd = bd;
-        meta.ingress_metadata.outer_bd = (bit<8>)bd;
-        meta.ingress_metadata.outer_ipv4_mcast_key_type = 1w1;
-        meta.ingress_metadata.outer_ipv4_mcast_key = (bit<8>)vrf;
-        meta.ingress_metadata.outer_ipv6_mcast_key_type = 1w1;
-        meta.ingress_metadata.outer_ipv6_mcast_key = (bit<8>)vrf;
-        meta.ingress_metadata.ipv4_unicast_enabled = ipv4_unicast_enabled;
-        meta.ingress_metadata.ipv6_unicast_enabled = ipv6_unicast_enabled;
-        meta.ingress_metadata.ipv4_multicast_mode = ipv4_multicast_mode;
-        meta.ingress_metadata.ipv6_multicast_mode = ipv6_multicast_mode;
-        meta.ingress_metadata.igmp_snooping_enabled = igmp_snooping_enabled;
-        meta.ingress_metadata.mld_snooping_enabled = mld_snooping_enabled;
-        meta.ingress_metadata.ipv4_urpf_mode = ipv4_urpf_mode;
-        meta.ingress_metadata.ipv6_urpf_mode = ipv6_urpf_mode;
-        meta.ingress_metadata.rmac_group = rmac_group;
-        meta.ingress_metadata.bd_mrpf_group = mrpf_group;
-        meta.ingress_metadata.uuc_mc_index = uuc_mc_index;
-        meta.ingress_metadata.umc_mc_index = umc_mc_index;
-        meta.ingress_metadata.bcast_mc_index = bcast_mc_index;
-        meta.ingress_metadata.bd_label = bd_label;
-        meta.ingress_metadata.stp_group = stp_group;
+    @name(".set_outer_bd_ipv4_mcast_route_ipv6_mcast_route_flags") action set_outer_bd_ipv4_mcast_route_ipv6_mcast_route_flags(@name("bd") bit<16> bd_7, @name("vrf") bit<12> vrf_9, @name("rmac_group") bit<10> rmac_group_9, @name("mrpf_group") bit<16> mrpf_group_6, @name("bd_label") bit<16> bd_label_9, @name("uuc_mc_index") bit<16> uuc_mc_index_9, @name("bcast_mc_index") bit<16> bcast_mc_index_9, @name("umc_mc_index") bit<16> umc_mc_index_9, @name("ipv4_unicast_enabled") bit<1> ipv4_unicast_enabled_9, @name("ipv6_unicast_enabled") bit<1> ipv6_unicast_enabled_7, @name("ipv4_multicast_mode") bit<2> ipv4_multicast_mode_7, @name("ipv6_multicast_mode") bit<2> ipv6_multicast_mode_7, @name("igmp_snooping_enabled") bit<1> igmp_snooping_enabled_9, @name("mld_snooping_enabled") bit<1> mld_snooping_enabled_7, @name("ipv4_urpf_mode") bit<2> ipv4_urpf_mode_7, @name("ipv6_urpf_mode") bit<2> ipv6_urpf_mode_7, @name("stp_group") bit<10> stp_group_9) {
+        meta._ingress_metadata_vrf22 = vrf_9;
+        meta._ingress_metadata_bd40 = bd_7;
+        meta._ingress_metadata_outer_bd27 = (bit<8>)bd_7;
+        meta._ingress_metadata_outer_ipv4_mcast_key_type28 = 1w1;
+        meta._ingress_metadata_outer_ipv4_mcast_key29 = (bit<8>)vrf_9;
+        meta._ingress_metadata_outer_ipv6_mcast_key_type30 = 1w1;
+        meta._ingress_metadata_outer_ipv6_mcast_key31 = (bit<8>)vrf_9;
+        meta._ingress_metadata_ipv4_unicast_enabled42 = ipv4_unicast_enabled_9;
+        meta._ingress_metadata_ipv6_unicast_enabled43 = ipv6_unicast_enabled_7;
+        meta._ingress_metadata_ipv4_multicast_mode44 = ipv4_multicast_mode_7;
+        meta._ingress_metadata_ipv6_multicast_mode45 = ipv6_multicast_mode_7;
+        meta._ingress_metadata_igmp_snooping_enabled46 = igmp_snooping_enabled_9;
+        meta._ingress_metadata_mld_snooping_enabled47 = mld_snooping_enabled_7;
+        meta._ingress_metadata_ipv4_urpf_mode52 = ipv4_urpf_mode_7;
+        meta._ingress_metadata_ipv6_urpf_mode53 = ipv6_urpf_mode_7;
+        meta._ingress_metadata_rmac_group56 = rmac_group_9;
+        meta._ingress_metadata_bd_mrpf_group60 = mrpf_group_6;
+        meta._ingress_metadata_uuc_mc_index63 = uuc_mc_index_9;
+        meta._ingress_metadata_umc_mc_index64 = umc_mc_index_9;
+        meta._ingress_metadata_bcast_mc_index65 = bcast_mc_index_9;
+        meta._ingress_metadata_bd_label74 = bd_label_9;
+        meta._ingress_metadata_stp_group109 = stp_group_9;
     }
     @name(".port_vlan_mapping") table port_vlan_mapping_0 {
         actions = {
@@ -847,11 +959,11 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
             @defaultonly NoAction_0();
         }
         key = {
-            meta.ingress_metadata.ifindex: exact @name("ingress_metadata.ifindex") ;
-            hdr.vlan_tag_[0].isValid()   : exact @name("vlan_tag_[0].$valid$") ;
-            hdr.vlan_tag_[0].vid         : exact @name("vlan_tag_[0].vid") ;
-            hdr.vlan_tag_[1].isValid()   : exact @name("vlan_tag_[1].$valid$") ;
-            hdr.vlan_tag_[1].vid         : exact @name("vlan_tag_[1].vid") ;
+            meta._ingress_metadata_ifindex21: exact @name("ingress_metadata.ifindex") ;
+            hdr.vlan_tag_[0].isValid()      : exact @name("vlan_tag_[0].$valid$") ;
+            hdr.vlan_tag_[0].vid            : exact @name("vlan_tag_[0].vid") ;
+            hdr.vlan_tag_[1].isValid()      : exact @name("vlan_tag_[1].$valid$") ;
+            hdr.vlan_tag_[1].vid            : exact @name("vlan_tag_[1].vid") ;
         }
         size = 32768;
         implementation = outer_bd_action_profile;
@@ -910,17 +1022,17 @@ control DeparserImpl(packet_out packet, in headers hdr) {
 }
 
 struct tuple_0 {
-    bit<4>  field;
-    bit<4>  field_0;
-    bit<8>  field_1;
-    bit<16> field_2;
-    bit<16> field_3;
-    bit<3>  field_4;
-    bit<13> field_5;
-    bit<8>  field_6;
-    bit<8>  field_7;
-    bit<32> field_8;
-    bit<32> field_9;
+    bit<4>  f0;
+    bit<4>  f1;
+    bit<8>  f2;
+    bit<16> f3;
+    bit<16> f4;
+    bit<3>  f5;
+    bit<13> f6;
+    bit<8>  f7;
+    bit<8>  f8;
+    bit<32> f9;
+    bit<32> f10;
 }
 
 control verifyChecksum(inout headers hdr, inout metadata meta) {

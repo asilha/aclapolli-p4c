@@ -30,11 +30,12 @@ template <class T>
 class TypeSubstitution : public IHasDbPrint {
  protected:
     std::map<T, const IR::Type*> binding;
-    /* True if this is the empty substitution, which does not replace anything. */
+
  public:
     TypeSubstitution() = default;
     TypeSubstitution(const TypeSubstitution& other) : binding(other.binding) {}
 
+    /** True if this is the empty substitution, which does not replace anything. */
     bool isIdentity() const { return binding.size() == 0; }
     const IR::Type* lookup(T t) const
     { return ::get(binding, t); }
@@ -79,14 +80,14 @@ class TypeVariableSubstitution final : public TypeSubstitution<const IR::ITypeVa
     bool setBindings(const IR::Node* errorLocation,
                      const IR::TypeParameters* params,
                      const IR::Vector<IR::Type>* args);
-    bool compose(const IR::Node* errorLocation,
-                 const IR::ITypeVar* var, const IR::Type* substitution);
+    /// Returns an empyty string on error, or an error message format otherwise.
+    /// The error message should be used with 'var' and 'substitution' as arguments when
+    /// reporting an error (i.e., it may contain %1% and %2% inside).
+    cstring compose(const IR::ITypeVar* var, const IR::Type* substitution);
     // In this variant of compose all variables in 'other' that are
     // assigned to are disjoint from all variables already in 'this'.
     void simpleCompose(const TypeVariableSubstitution* other);
 };
-
-class TypeNameSubstitution final : public TypeSubstitution<const IR::Type_Name*> {};
 
 }  // namespace P4
 

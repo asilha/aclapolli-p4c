@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header Hdr1 {
@@ -64,8 +65,9 @@ control deparser(packet_out b, in Headers h) {
 
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
     apply {
-        if (h.u.h2.isValid()) 
+        if (h.u.h2.isValid()) {
             h.u.h2.setInvalid();
+        }
     }
 }
 

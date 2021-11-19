@@ -7,14 +7,14 @@ struct struct_t {
 }
 
 control ctrl(inout struct_t input, out header_h output) {
-    header_h tmp0_0;
-    header_h tmp1_0;
+    @name("ctrl.tmp0") header_h tmp0_0;
+    @name("ctrl.tmp1") header_h tmp1_0;
     @name("ctrl.act") action act() {
         tmp0_0 = input.stack[0];
         input.stack.pop_front(1);
         tmp1_0 = tmp0_0;
     }
-    @hidden action act_0() {
+    @hidden action issue313_1l35() {
         output = tmp1_0;
     }
     @hidden table tbl_act {
@@ -23,15 +23,15 @@ control ctrl(inout struct_t input, out header_h output) {
         }
         const default_action = act();
     }
-    @hidden table tbl_act_0 {
+    @hidden table tbl_issue313_1l35 {
         actions = {
-            act_0();
+            issue313_1l35();
         }
-        const default_action = act_0();
+        const default_action = issue313_1l35();
     }
     apply {
         tbl_act.apply();
-        tbl_act_0.apply();
+        tbl_issue313_1l35.apply();
     }
 }
 

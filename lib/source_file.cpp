@@ -79,7 +79,7 @@ void InputSources::seal() {
 
 unsigned InputSources::lineCount() const {
     int size = contents.size();
-    if (contents.back().isNullOrEmpty()) {
+    if (contents.back().empty()) {
         // do not count the last line if it is empty.
         size -= 1;
         if (size < 0)
@@ -254,6 +254,14 @@ cstring InputSources::getBriefSourceFragment(const SourceInfo &position) const {
     } else {
         end = position.getEnd().getColumnNumber();
     }
+
+    // Adding escape character in front of '"' character to properly store
+    // quote marks as part of JSON properties, they must be escaped.
+    if (result.find('"') != nullptr) {
+        cstring out = result.replace("\"", "\\\"");
+        return out.substr(0, out.size()-1);
+    }
+
     return result.substr(start, end - start) + toadd;
 }
 
@@ -270,10 +278,14 @@ cstring InputSources::toDebugString() const {
 ///////////////////////////////////////////////////
 
 cstring SourceInfo::toSourceFragment() const {
+    if (!isValid())
+        return "";
     return sources->getSourceFragment(*this);
 }
 
 cstring SourceInfo::toBriefSourceFragment() const {
+    if (!isValid())
+        return "";
     return sources->getBriefSourceFragment(*this);
 }
 

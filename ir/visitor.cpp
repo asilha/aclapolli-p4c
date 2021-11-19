@@ -14,9 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+
 #include <time.h>
 #include "ir.h"
 #include "lib/log.h"
+
+#include "visitor.h"
 
 /** @class Visitor::ChangeTracker
  *  @brief Assists visitors in traversing the IR.
@@ -62,8 +65,8 @@ class Visitor::ChangeTracker {
      * If @final is a new node, that node is marked as finished as well, as if
      * `start(@final); finish(@final);` were invoked.
      *
-     * @return true if the node has changed or been removed.
-     * 
+     * @return true if the node has changed or been removed or coalesced.
+     *
      * @exception Util::CompilerBug This method fails if `start(@orig)` has not
      * previously been invoked.
      */
@@ -80,6 +83,11 @@ class Visitor::ChangeTracker {
         } else if (final != orig && *final != *orig) {
             orig_visit_info->result = final;
             visited.emplace(final, visit_info_t{false, orig_visit_info->visitOnce, final});
+            return true;
+        } else if (visited.count(final)) {
+            // coalescing with some previously visited node, so we don't want to undo
+            // the coalesce
+            orig_visit_info->result = final;
             return true;
         } else {
             // FIXME -- not safe if the visitor resurrects the node (which it shouldn't)
@@ -108,7 +116,7 @@ class Visitor::ChangeTracker {
      *  and we don't want to visit @n again the next time we see it.
      * That is, `start(@n)` has been invoked, followed by `finish(@n)`,
      * and the visitOnce field is true.
-     * 
+     *
      * @return true if @n has been visited and the visitor is finished and visitOnce is true
      */
     bool done(const IR::Node *n) const {
@@ -130,10 +138,14 @@ class Visitor::ChangeTracker {
 };
 
 Visitor::profile_t Visitor::init_apply(const IR::Node *root) {
-    if (ctxt) BUG("previous use of visitor did not clean up properly");
     ctxt = nullptr;
     if (joinFlows) init_join_flows(root);
     return profile_t(*this);
+}
+Visitor::profile_t Visitor::init_apply(const IR::Node *root, const Context *parent_ctxt) {
+    auto rv = init_apply(root);
+    ctxt = parent_ctxt;
+    return rv;
 }
 Visitor::profile_t Modifier::init_apply(const IR::Node *root) {
     auto rv = Visitor::init_apply(root);
@@ -151,6 +163,7 @@ void Visitor::end_apply() {}
 void Visitor::end_apply(const IR::Node*) {}
 
 static indent_t profile_indent;
+static uint64_t first_start = 0;
 Visitor::profile_t::profile_t(Visitor &v_) : v(v_) {
     struct timespec ts;
 #ifdef CLOCK_MONOTONIC
@@ -161,6 +174,8 @@ Visitor::profile_t::profile_t(Visitor &v_) : v(v_) {
 #endif
     start = ts.tv_sec*1000000000UL + ts.tv_nsec + 1;
     assert(start);
+    LOG3(profile_indent << v.name() << " statrting at +" <<
+         (first_start ? start - first_start : (first_start = start, 0UL))/1000000.0 << " msec");
     ++profile_indent;
 }
 Visitor::profile_t::profile_t(profile_t &&a) : v(a.v), start(a.start) {
@@ -212,6 +227,7 @@ struct PushContext {
         current.parent = stack;
         current.node = current.original = node;
         current.child_index = 0;
+        current.child_name = "";
         current.depth = stack ? stack->depth+1 : 1;
         assert(current.depth < 10000);    // stack overflow?
         stack = &current; }
@@ -426,22 +442,22 @@ bool ControlFlowVisitor::join_flows(const IR::Node *n) {
 bool Inspector::check_clone(const Visitor *v) {
     auto *t = dynamic_cast<const Inspector *>(v);
     BUG_CHECK(t && t->visited == visited, "Clone failed to copy base object");
-    return true;
+    return Visitor::check_clone(v);
 }
 bool Modifier::check_clone(const Visitor *v) {
     auto *t = dynamic_cast<const Modifier *>(v);
     BUG_CHECK(t && t->visited == visited, "Clone failed to copy base object");
-    return true;
+    return Visitor::check_clone(v);
 }
 bool Transform::check_clone(const Visitor *v) {
     auto *t = dynamic_cast<const Transform *>(v);
     BUG_CHECK(t && t->visited == visited, "Clone failed to copy base object");
-    return true;
+    return Visitor::check_clone(v);
 }
 
 ControlFlowVisitor &ControlFlowVisitor::flow_clone() {
     auto *rv = clone();
-    assert(rv->check_clone(this));
+    BUG_CHECK(rv->check_clone(this), "Clone failed to copy visitor type");
     return *rv;
 }
 
@@ -471,6 +487,7 @@ IRNODE_ALL_NON_TEMPLATE_CLASSES(DEFINE_APPLY_FUNCTIONS, , , )
 std::ostream &operator<<(std::ostream &out, const IR::Vector<IR::Expression> *v) {
     return v ? out << *v : out << "<null>"; }
 
+#include <config.h>
 #if HAVE_CXXABI_H
 #include <cxxabi.h>
 

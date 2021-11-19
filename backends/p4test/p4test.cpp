@@ -38,8 +38,16 @@ class P4TestOptions : public CompilerOptions {
  public:
     bool parseOnly = false;
     bool validateOnly = false;
-    bool fromJSON = false;
+    bool loadIRFromJson = false;
     P4TestOptions() {
+        registerOption("--listMidendPasses", nullptr,
+                [this](const char*) {
+                    listMidendPasses = true;
+                    loadIRFromJson = false;
+                    P4Test::MidEnd MidEnd(*this, outStream);
+                    exit(0);
+                    return false; },
+                "[p4test] Lists exact name of all midend passes.\n");
         registerOption("--parse-only", nullptr,
                        [this](const char*) {
                            parseOnly = true;
@@ -51,9 +59,10 @@ class P4TestOptions : public CompilerOptions {
                            return true;
                        },
                        "Validate the P4 input, running just the front-end");
-        registerOption("--fromJSON", nullptr,
-                       [this](const char*) {
-                           fromJSON = true;
+        registerOption("--fromJSON", "file",
+                       [this](const char* arg) {
+                           loadIRFromJson = true;
+                           file = arg;
                            return true;
                        },
                        "read previously dumped json instead of P4 source code");
@@ -83,67 +92,73 @@ int main(int argc, char *const argv[]) {
     options.langVersion = CompilerOptions::FrontendVersion::P4_16;
     options.compilerVersion = P4TEST_VERSION_STRING;
 
-    if (options.process(argc, argv) != nullptr)
-        options.setInputFile();
+    if (options.process(argc, argv) != nullptr) {
+            if (options.loadIRFromJson == false)
+                    options.setInputFile();
+    }
     if (::errorCount() > 0)
         return 1;
     const IR::P4Program *program = nullptr;
-    if (options.fromJSON) {
+    auto hook = options.getDebugHook();
+    if (options.loadIRFromJson) {
         std::ifstream json(options.file);
         if (json) {
             JSONLoader loader(json);
             const IR::Node* node = nullptr;
             loader >> node;
             if (!(program = node->to<IR::P4Program>()))
-                error("%s is not a P4Program in json format", options.file);
+                error(ErrorType::ERR_INVALID, "%s is not a P4Program in json format", options.file);
         } else {
-            error("Can't open %s", options.file); }
+            error(ErrorType::ERR_IO, "Can't open %s", options.file); }
     } else {
         program = P4::parseP4File(options);
+
+        if (program != nullptr && ::errorCount() == 0) {
+            P4::P4COptionPragmaParser optionsPragmaParser;
+            program->apply(P4::ApplyOptionsPragmas(optionsPragmaParser));
+
+            if (!options.parseOnly) {
+                try {
+                    P4::FrontEnd fe;
+                    fe.addDebugHook(hook);
+                    program = fe.run(options, program);
+                } catch (const std::exception &bug) {
+                    std::cerr << bug.what() << std::endl;
+                    return 1;
+                }
+            }
+        }
     }
-    auto hook = options.getDebugHook();
 
+    log_dump(program, "Initial program");
     if (program != nullptr && ::errorCount() == 0) {
-        P4::P4COptionPragmaParser optionsPragmaParser;
-        program->apply(P4::ApplyOptionsPragmas(optionsPragmaParser));
+        P4::serializeP4RuntimeIfRequired(program, options);
 
-        if (!options.parseOnly) {
+        if (!options.parseOnly && !options.validateOnly) {
+            P4Test::MidEnd midEnd(options);
+            midEnd.addDebugHook(hook);
+#if 0
+            /* doing this breaks the output until we get dump/undump of srcInfo */
+            if (options.debugJson) {
+                std::stringstream tmp;
+                JSONGenerator gen(tmp);
+                gen << program;
+                JSONLoader loader(tmp);
+                loader >> program;
+            }
+#endif
+            const IR::ToplevelBlock *top = nullptr;
             try {
-                P4::FrontEnd fe;
-                fe.addDebugHook(hook);
-                program = fe.run(options, program);
-            } catch (const Util::P4CExceptionBase &bug) {
+                top = midEnd.process(program);
+                // This can modify program!
+                log_dump(program, "After midend");
+                log_dump(top, "Top level block");
+            } catch (const std::exception &bug) {
                 std::cerr << bug.what() << std::endl;
                 return 1;
             }
         }
-        log_dump(program, "Initial program");
-        if (program != nullptr && ::errorCount() == 0) {
-            P4::serializeP4RuntimeIfRequired(program, options);
-
-            if (!options.parseOnly && !options.validateOnly) {
-                P4Test::MidEnd midEnd(options);
-                midEnd.addDebugHook(hook);
-#if 0
-                /* doing this breaks the output until we get dump/undump of srcInfo */
-                if (options.debugJson) {
-                    std::stringstream tmp;
-                    JSONGenerator gen(tmp);
-                    gen << program;
-                    JSONLoader loader(tmp);
-                    loader >> program;
-                }
-#endif
-                const IR::ToplevelBlock *top = nullptr;
-                try {
-                    top = midEnd.process(program);
-                } catch (const Util::P4CExceptionBase &bug) {
-                    std::cerr << bug.what() << std::endl;
-                    return 1;
-                }
-                log_dump(program, "After midend");
-                log_dump(top, "Top level block");
-            }
+        if (program) {
             if (options.dumpJsonFile)
                 JSONGenerator(*openFile(options.dumpJsonFile, true), true) << program << std::endl;
             if (options.debugJson) {
@@ -157,12 +172,13 @@ int main(int argc, char *const argv[]) {
 
                 gen2 << node;
                 if (ss1.str() != ss2.str()) {
-                    error("json mismatch");
+                    error(ErrorType::ERR_UNEXPECTED, "json mismatch");
                     std::ofstream t1("t1.json"), t2("t2.json");
                     t1 << ss1.str() << std::flush;
                     t2 << ss2.str() << std::flush;
                     auto rv = system("json_diff t1.json t2.json");
-                    if (rv != 0) ::warning("json_diff failed with code %1%", rv);
+                    if (rv != 0) ::warning(ErrorType::WARN_FAILED,
+                                           "json_diff failed with code %1%", rv);
                 }
             }
         }

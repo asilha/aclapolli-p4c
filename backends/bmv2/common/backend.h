@@ -54,8 +54,7 @@ class Backend {
     P4::ConvertEnums::EnumMapping*   enumMap;
     P4::P4CoreLibrary&               corelib;
     BMV2::JsonObjects*               json;
-    ExpressionConverter*             conv;
-    const IR::ToplevelBlock*         toplevel;
+    const IR::ToplevelBlock*         toplevel = nullptr;
 
  public:
     Backend(BMV2Options& options, P4::ReferenceMap* refMap, P4::TypeMap* typeMap,
@@ -82,7 +81,7 @@ class SkipControls : public P4::ActionSynthesisPolicy {
 
  public:
     explicit SkipControls(const std::set<cstring> *skip) : skip(skip) { CHECK_NULL(skip); }
-    bool convert(const IR::P4Control* control) const {
+    bool convert(const Visitor::Context *, const IR::P4Control* control) override {
         if (skip->find(control->name) != skip->end())
             return false;
         return true;
@@ -130,9 +129,7 @@ class RenameUserMetadata : public Transform {
     { setName("RenameUserMetadata"); CHECK_NULL(refMap); }
 
     const IR::Node* postorder(IR::Type_Struct* type) override {
-        // Clone the user metadata type.  We want this type to be used
-        // only for parameters.  For any other variables we will used
-        // the clone we create.
+        // Clone the user metadata type
         if (userMetaType != getOriginal())
             return type;
 
@@ -148,7 +145,7 @@ class RenameUserMetadata : public Transform {
             auto anno = f->getAnnotation(IR::Annotation::nameAnnotation);
             cstring suffix = "";
             if (anno != nullptr)
-                suffix = IR::Annotation::getName(anno);
+                suffix = anno->getName();
             if (suffix.startsWith(".")) {
                 // We can't change the name of this field.
                 // Hopefully the user knows what they are doing.
@@ -163,8 +160,7 @@ class RenameUserMetadata : public Transform {
             cstring newName = namePrefix + suffix;
             auto stringLit = new IR::StringLiteral(newName);
             LOG2("Renaming " << f << " to " << newName);
-            auto annos = f->annotations->addOrReplace(
-                IR::Annotation::nameAnnotation, stringLit);
+            auto annos = f->annotations->addOrReplace(IR::Annotation::nameAnnotation, stringLit);
             auto field = new IR::StructField(f->srcInfo, f->name, annos, f->type);
             fields.push_back(field);
         }
@@ -176,11 +172,7 @@ class RenameUserMetadata : public Transform {
     }
 
     const IR::Node* preorder(IR::Type_Name* type) override {
-        // Find any reference to the user metadata type that is used
-        // (but not for parameters or the package instantiation)
-        // and replace it with the cloned type.
-        if (!findContext<IR::Declaration_Variable>())
-            return type;
+        // Find any reference to the user metadata type that is used and replace them
         auto decl = refMap->getDeclaration(type->path);
         if (decl == userMetaType)
             type->path = new IR::Path(type->path->srcInfo, IR::ID(type->path->srcInfo, namePrefix));

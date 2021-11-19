@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header ethernet_t {
@@ -54,17 +55,17 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @hidden action act() {
+    @hidden action issue995bmv2l76() {
         hdr.ethernet.etherType = meta.transition_taken;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue995bmv2l76 {
         actions = {
-            act();
+            issue995bmv2l76();
         }
-        const default_action = act();
+        const default_action = issue995bmv2l76();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue995bmv2l76.apply();
     }
 }
 

@@ -16,15 +16,16 @@ limitations under the License.
 
 #include "backend.h"
 #include "deparser.h"
+#include "extern.h"
 
 namespace BMV2 {
 
 void DeparserConverter::convertDeparserBody(const IR::Vector<IR::StatOrDecl>* body,
-                                          Util::JsonArray* result) {
+                                          Util::JsonArray* order, Util::JsonArray* primitives) {
     ctxt->conv->simpleExpressionsOnly = true;
     for (auto s : *body) {
         if (auto block = s->to<IR::BlockStatement>()) {
-            convertDeparserBody(&block->components, result);
+            convertDeparserBody(&block->components, order, primitives);
             continue;
         } else if (s->is<IR::ReturnStatement>() || s->is<IR::ExitStatement>()) {
             break;
@@ -41,44 +42,46 @@ void DeparserConverter::convertDeparserBody(const IR::Vector<IR::StatOrDecl>* bo
                                   "Expected exactly 1 argument for %1%", mc);
                         auto arg = mc->arguments->at(0);
                         auto type = ctxt->typeMap->getType(arg, true);
-                        if (type->is<IR::Type_Stack>()) {
-                            // This branch is in fact never taken, because
-                            // arrays are expanded into elements.
-                            int size = type->to<IR::Type_Stack>()->getSize();
-                            for (int i=0; i < size; i++) {
-                                auto j = ctxt->conv->convert(arg->expression);
-                                auto e = j->to<Util::JsonObject>()->get("value");
-                                BUG_CHECK(e->is<Util::JsonValue>(),
-                                          "%1%: Expected a Json value", e->toString());
-                                cstring ref = e->to<Util::JsonValue>()->getString();
-                                ref += "[" + Util::toString(i) + "]";
-                                result->append(ref);
-                            }
-                        } else if (type->is<IR::Type_Header>()) {
+                        if (type->is<IR::Type_Header>()) {
                             auto j = ctxt->conv->convert(arg->expression);
                             auto val = j->to<Util::JsonObject>()->get("value");
-                            result->append(val);
+                            order->append(val);
                         } else {
-                            ::error("%1%: emit only supports header and stack arguments, not %2%",
+                            // We don't need to handle other types,
+                            // like header unions or stacks; they were
+                            // expanded by the expandEmit pass.
+                            ::error(ErrorType::ERR_UNSUPPORTED,
+                                    "%1%: emit only supports header arguments, not %2%",
                                     arg, type);
                         }
                     }
                     continue;
                 }
+            } else if (mi->is<P4::ExternFunction>()) {
+                auto ef = mi->to<P4::ExternFunction>();
+                ctxt->conv->simpleExpressionsOnly = false;
+                auto json = ExternConverter::cvtExternFunction(ctxt, ef, mc,
+                                                                s, /* emitExterns */ true);
+                ctxt->conv->simpleExpressionsOnly = true;
+                if (json)
+                    primitives->append(json);
+                continue;
             }
         }
-        ::error("%1%: not supported with a deparser on this target", s);
+        ::error(ErrorType::ERR_UNSUPPORTED,
+                "%1%: not supported within a deparser on this target", s);
     }
     ctxt->conv->simpleExpressionsOnly = false;
 }
 
 Util::IJson* DeparserConverter::convertDeparser(const IR::P4Control* ctrl) {
     auto result = new Util::JsonObject();
-    result->emplace("name", "deparser");  // at least in simple_router this name is hardwired
+    result->emplace("name", name);
     result->emplace("id", nextId("deparser"));
     result->emplace_non_null("source_info", ctrl->sourceInfoJsonObj());
     auto order = mkArrayField(result, "order");
-    convertDeparserBody(&ctrl->body->components, order);
+    auto primitives = mkArrayField(result, "primitives");
+    convertDeparserBody(&ctrl->body->components, order, primitives);
     return result;
 }
 

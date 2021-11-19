@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct metadata {
@@ -22,11 +23,10 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".my_drop") action my_drop() {
-        mark_to_drop();
+    @name(".my_drop") action my_drop(@name("smeta") inout standard_metadata_t smeta) {
+        mark_to_drop(smeta);
     }
-    bit<16> tmp;
-    @name("ingress.set_port") action set_port(bit<9> output_port) {
+    @name("ingress.set_port") action set_port(@name("output_port") bit<9> output_port) {
         standard_metadata.egress_spec = output_port;
     }
     @name("ingress.mac_da") table mac_da_0 {
@@ -35,25 +35,25 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         }
         actions = {
             set_port();
-            my_drop();
+            my_drop(standard_metadata);
         }
-        default_action = my_drop();
+        default_action = my_drop(standard_metadata);
     }
     apply {
         mac_da_0.apply();
         {
-            bit<16> x_0 = hdr.ethernet.srcAddr[15:0];
-            bool hasReturned = false;
-            bit<16> retval;
-            bit<16> tmp_0;
+            @name("ingress.x_0") bit<16> x_0 = hdr.ethernet.srcAddr[15:0];
+            @name("ingress.hasReturned") bool hasReturned = false;
+            @name("ingress.retval") bit<16> retval;
+            @name("ingress.tmp") bit<16> tmp_0;
             tmp_0 = x_0;
-            if (x_0 > 16w5) 
+            if (x_0 > 16w5) {
                 tmp_0 = x_0 + 16w65535;
+            }
             hasReturned = true;
             retval = tmp_0;
-            tmp = retval;
+            hdr.ethernet.srcAddr[15:0] = retval;
         }
-        hdr.ethernet.srcAddr[15:0] = tmp;
     }
 }
 

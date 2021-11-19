@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct routing_metadata_t {
@@ -182,20 +183,21 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
     }
 }
 
+@name(".cnt1") counter<bit<5>>(32w32, CounterType.packets) cnt1;
+
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".cnt1") counter(32w32, CounterType.packets) cnt1;
     @name(".drop_pkt") action drop_pkt() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".hop") action hop(inout bit<8> ttl, bit<9> egress_spec) {
-        ttl = ttl + 8w255;
+        ttl = ttl - 8w1;
         standard_metadata.egress_spec[8:0] = egress_spec[8:0];
     }
     @name(".hop_ipv4") action hop_ipv4(bit<9> egress_spec) {
         hop(hdr.ipv4.ttl, egress_spec);
     }
     @name(".act") action act() {
-        cnt1.count((bit<32>)32w10);
+        cnt1.count((bit<5>)5w10);
     }
     @name(".ipv4_routing") table ipv4_routing {
         actions = {

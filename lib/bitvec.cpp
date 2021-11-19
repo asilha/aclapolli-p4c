@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <ctype.h>
 #include "bitvec.h"
 #include "hex.h"
 
@@ -33,6 +34,38 @@ std::ostream &operator<<(std::ostream &os, const bitvec &bv) {
             os << '0';
     }
     return os;
+}
+
+std::istream &operator>>(std::istream &is, bitvec &bv) {
+    char ch;
+    while (is && isspace((ch = is.get()))) {}
+    if (!is) return is;
+    if (!isxdigit(ch)) {
+        is.unget();
+        is.setstate(std::ios_base::failbit);
+    } else {
+        bv.clear();
+        do {
+            bv <<= 4;
+            if (isdigit(ch)) bv |= ch - '0';
+            if (islower(ch)) bv |= ch - 'a' + 10;
+            if (isupper(ch)) bv |= ch - 'A' + 10;
+            ch = is.get();
+        } while (is && isxdigit(ch));
+        if (is) is.unget(); }
+    return is;
+}
+
+bool operator>>(const char *s, bitvec &bv) {
+    bv.clear();
+    while (*s) {
+        if (!isxdigit(*s)) return false;
+        bv <<= 4;
+        if (isdigit(*s)) bv |= *s - '0';
+        if (islower(*s)) bv |= *s - 'a' + 10;
+        if (isupper(*s)) bv |= *s - 'A' + 10;
+        s++; }
+    return true;
 }
 
 bitvec &bitvec::operator>>=(size_t count) {
@@ -144,4 +177,34 @@ bool bitvec::is_contiguous() const {
     if (empty())
         return false;
     return max().index() - min().index() + 1 == popcount();
+}
+
+bitvec bitvec::rotate_right_helper(size_t start_bit, size_t rotation_idx, size_t end_bit) const {
+    assert(start_bit <= rotation_idx && rotation_idx < end_bit);
+    bitvec rot_mask(start_bit, end_bit - start_bit);
+    bitvec rotation_section = *this & rot_mask;
+    int down_shift = rotation_idx - start_bit;
+    int up_shift = (end_bit - start_bit) - down_shift;
+    bitvec rv;
+    rv = (rotation_section >> down_shift) | (rotation_section << up_shift);
+    return rv & rot_mask;
+}
+
+/**
+ * Designed to imitate the std::rotate/std::rotate_copy function for vectors.  Return a bitvec
+ * which has the bit at rotation_idx appear at start_bit, and the corresponding data
+ * between start_bit and end_bit rotated.  Similar to std::rotate/std::rotate_copy, end_bit is
+ * exclusive
+ */
+void bitvec::rotate_right(size_t start_bit, size_t rotation_idx, size_t end_bit) {
+    bitvec rot_section = rotate_right_helper(start_bit, rotation_idx, end_bit);
+    clrrange(start_bit, end_bit - start_bit);
+    *this |= rot_section;
+}
+
+bitvec bitvec::rotate_right_copy(size_t start_bit, size_t rotation_idx, size_t end_bit) const {
+    bitvec rot_section = rotate_right_helper(start_bit, rotation_idx, end_bit);
+    bitvec rot_mask(start_bit, end_bit - start_bit);
+    bitvec rv = rot_section | (*this - rot_mask);
+    return rv;
 }

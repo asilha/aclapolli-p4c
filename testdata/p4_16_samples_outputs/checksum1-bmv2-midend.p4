@@ -4,6 +4,7 @@ error {
     IPv4ChecksumError
 }
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<32> IPv4Address;
@@ -60,11 +61,12 @@ struct mystruct1_t {
 }
 
 struct metadata {
-    mystruct1_t mystruct1;
+    bit<4> _mystruct1_a0;
+    bit<4> _mystruct1_b1;
 }
 
 parser parserI(packet_in pkt, out headers hdr, inout metadata meta, inout standard_metadata_t stdmeta) {
-    IPv4_up_to_ihl_only_h tmp;
+    @name("parserI.tmp") IPv4_up_to_ihl_only_h tmp;
     bit<8> tmp_4;
     state start {
         pkt.extract<ethernet_t>(hdr.ethernet);
@@ -118,18 +120,18 @@ control cEgress(inout headers hdr, inout metadata meta, inout standard_metadata_
 }
 
 struct tuple_0 {
-    bit<4>      field;
-    bit<4>      field_0;
-    bit<8>      field_1;
-    bit<16>     field_2;
-    bit<16>     field_3;
-    bit<3>      field_4;
-    bit<13>     field_5;
-    bit<8>      field_6;
-    bit<8>      field_7;
-    bit<32>     field_8;
-    bit<32>     field_9;
-    varbit<320> field_10;
+    bit<4>      f0;
+    bit<4>      f1;
+    bit<8>      f2;
+    bit<16>     f3;
+    bit<16>     f4;
+    bit<3>      f5;
+    bit<13>     f6;
+    bit<8>      f7;
+    bit<8>      f8;
+    bit<32>     f9;
+    bit<32>     f10;
+    varbit<320> f11;
 }
 
 control vc(inout headers hdr, inout metadata meta) {

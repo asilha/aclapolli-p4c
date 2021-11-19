@@ -20,9 +20,7 @@ control c() {
         const default_action = multicast(1);
         const entries = {
                         (true, 1, true) : multicast(2);
-
         }
-
     }
     apply {
         forward.apply();

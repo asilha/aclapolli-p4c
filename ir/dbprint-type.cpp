@@ -45,6 +45,7 @@ void IR::Type_MethodBase::dbprint(std::ostream& out) const {
 
 void IR::Method::dbprint(std::ostream& out) const {
     int flags = dbgetflags(out);
+    out << annotations;
     if (isAbstract) out << "abstract ";
     out << Brief << type->returnType << " " << name;
     if (type->typeParameters != nullptr)
@@ -105,6 +106,17 @@ void IR::Type_Tuple::dbprint(std::ostream& out) const {
     dbsetflags(out, flags);
 }
 
+void IR::Type_List::dbprint(std::ostream& out) const {
+    int flags = dbgetflags(out);
+    out << Brief << "list<";
+    const char *sep = "";
+    for (auto t : components) {
+        out << sep << t;
+        sep = ", "; }
+    out << ">";
+    dbsetflags(out, flags);
+}
+
 void IR::Type_Extern::dbprint(std::ostream& out) const {
     if (dbgetflags(out) & Brief) {
         out << name;
@@ -114,7 +126,7 @@ void IR::Type_Extern::dbprint(std::ostream& out) const {
         out << typeParameters;
     out << " {" << indent << clrflag(Brief);
     for (auto &method : methods)
-        out << endl << method << ';';
+        out << Log::endl << method << ';';
     out << " }" << unindent;
 }
 
@@ -141,7 +153,7 @@ void IR::Type_StructLike::dbprint(std::ostream &out) const {
         return; }
     out << toString() << " " << annotations << "{" << indent;
     for (auto &field : fields)
-        out << endl << field << ';';
+        out << Log::endl << field << ';';
     out << " }" << unindent;
 }
 

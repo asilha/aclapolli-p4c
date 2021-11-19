@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header X {
@@ -13,9 +14,9 @@ struct meta {
     bit<32> add2;
 }
 
-@name("metadata") struct metadata {
-    meta    x;
-    bit<32> z;
+struct metadata {
+    bit<32> _x_add20;
+    bit<32> _z1;
 }
 
 control DeparserI(packet_out packet, in Parsed_packet hdr) {
@@ -31,14 +32,14 @@ parser parserI(packet_in pkt, out Parsed_packet hdr, inout metadata m, inout sta
 }
 
 control cIngress(inout Parsed_packet hdr, inout metadata m, inout standard_metadata_t stdmeta) {
-    bit<32> z_0;
+    @name("cIngress.z") bit<32> z_0;
     @name("cIngress.foo") action foo() {
     }
     @name("cIngress.t") table t_0 {
         key = {
             hdr.x.add1: exact @name("hdr.x.add1") ;
-            m.x.add2  : exact @name("m.x.add2") ;
-            m.z       : exact @name("m.z") ;
+            m._x_add20: exact @name("m.x.add2") ;
+            m._z1     : exact @name("m.z") ;
             z_0       : exact @name("z") ;
         }
         actions = {
@@ -46,17 +47,17 @@ control cIngress(inout Parsed_packet hdr, inout metadata m, inout standard_metad
         }
         default_action = foo();
     }
-    @hidden action act() {
+    @hidden action issue486bmv2l58() {
         z_0 = 32w5;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue486bmv2l58 {
         actions = {
-            act();
+            issue486bmv2l58();
         }
-        const default_action = act();
+        const default_action = issue486bmv2l58();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue486bmv2l58.apply();
         t_0.apply();
     }
 }

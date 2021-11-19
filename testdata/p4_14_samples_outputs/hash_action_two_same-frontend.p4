@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct counter_metadata_t {
@@ -40,21 +41,23 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
     }
 }
 
+@name(".count1") @min_width(32) counter<bit<14>>(32w16384, CounterType.packets) count1;
+
+@name(".meter1") meter<bit<10>>(32w1024, MeterType.bytes) meter1;
+
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
     }
-    @name(".count1") @min_width(32) counter(32w16384, CounterType.packets) count1_0;
-    @name(".meter1") meter(32w1024, MeterType.bytes) meter1_0;
-    @name(".set_index") action set_index(bit<16> index, bit<9> port) {
-        meta.counter_metadata.counter_index = index;
-        meta.meter_metadata.meter_index = index;
+    @name(".set_index") action set_index(@name("index") bit<16> index_1, @name("port") bit<9> port) {
+        meta.counter_metadata.counter_index = index_1;
+        meta.meter_metadata.meter_index = index_1;
         standard_metadata.egress_spec = port;
     }
     @name(".count_entries") action count_entries() {
-        count1_0.count((bit<32>)meta.counter_metadata.counter_index);
-        meter1_0.execute_meter<bit<8>>((bit<32>)meta.meter_metadata.meter_index, hdr.data.color_1);
+        count1.count((bit<14>)meta.counter_metadata.counter_index);
+        meter1.execute_meter<bit<8>>((bit<10>)meta.meter_metadata.meter_index, hdr.data.color_1);
     }
     @name(".index_setter") table index_setter_0 {
         actions = {

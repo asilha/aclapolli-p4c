@@ -32,6 +32,44 @@ std::string JsonObject::get_type() const {
         return *(dynamic_cast<JsonString*>(find("Node_Type")->second));
 }
 
+std::string JsonObject::get_filename() const {
+    if (find("filename") == end())
+        return "";
+    else
+        return *(dynamic_cast<JsonString*>(find("filename")->second));
+}
+
+std::string JsonObject::get_sourceFragment() const {
+    if (find("source_fragment") == end())
+        return "";
+    else
+        return *(dynamic_cast<JsonString*>(find("source_fragment")->second));
+}
+
+int JsonObject::get_line() const {
+    if (find("line") == end())
+        return -1;
+    else
+        return *(find("line")->second->to<JsonNumber>());
+}
+
+int JsonObject::get_column() const {
+    if (find("column") == end())
+        return -1;
+    else
+        return *(find("column")->second->to<JsonNumber>());
+}
+
+JsonObject JsonObject::get_sourceJson() const {
+    if (find("Source_Info") == end()) {
+        JsonObject obj;
+        obj.setSrcInfo(false);
+        return obj;
+    } else {
+        return *(dynamic_cast<JsonObject*>(find("Source_Info")->second));
+    }
+}
+
 // Hack to make << operator work multi-threaded
 static thread_local int level = 0;
 
@@ -140,10 +178,16 @@ std::istream& operator>>(std::istream &in, JsonData*& json) {
         }
         case '-': case '0': case '1': case '2': case '3':
         case '4': case '5': case '6': case '7': case '8': case '9': {
-            mpz_class num;
+            // operator>>(istream, big_int) is broken and throws exceptions if the
+            // number is not followed by whitespace, so we need to manually extract all
+            // the digits into a buffer and convert that to big_int
+            std::string num;
+            do {
+                num += ch;
+                in >> ch;
+            } while (isdigit(ch));
             in.unget();
-            in >> num;
-            json = new JsonNumber(num);
+            json = new JsonNumber(big_int(num));
             return in;
         }
         case 't': case 'T':

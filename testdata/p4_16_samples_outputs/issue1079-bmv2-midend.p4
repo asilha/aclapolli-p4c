@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header empty {
@@ -13,8 +14,8 @@ struct cksum_t {
 }
 
 struct metadata_t {
-    cksum_t cksum;
-    bit<1>  b;
+    bit<16> _cksum_result0;
+    bit<1>  _b1;
 }
 
 parser EmptyParser(packet_in b, out headers_t headers, inout metadata_t meta, inout standard_metadata_t standard_metadata) {
@@ -24,12 +25,12 @@ parser EmptyParser(packet_in b, out headers_t headers, inout metadata_t meta, in
 }
 
 struct tuple_0 {
-    bit<16> field;
+    bit<16> f0;
 }
 
 control EmptyVerifyChecksum(inout headers_t hdr, inout metadata_t meta) {
     apply {
-        verify_checksum<tuple_0, bit<16>>(false, { 16w0 }, meta.cksum.result, HashAlgorithm.csum16);
+        verify_checksum<tuple_0, bit<16>>(false, { 16w0 }, meta._cksum_result0, HashAlgorithm.csum16);
     }
 }
 
@@ -39,25 +40,25 @@ control EmptyIngress(inout headers_t headers, inout metadata_t meta, inout stand
 }
 
 control EmptyEgress(inout headers_t hdr, inout metadata_t meta, inout standard_metadata_t standard_metadata) {
-    @hidden action act() {
-        mark_to_drop();
+    @hidden action issue1079bmv2l47() {
+        mark_to_drop(standard_metadata);
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue1079bmv2l47 {
         actions = {
-            act();
+            issue1079bmv2l47();
         }
-        const default_action = act();
+        const default_action = issue1079bmv2l47();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue1079bmv2l47.apply();
     }
 }
 
 control EmptyComputeChecksum(inout headers_t hdr, inout metadata_t meta) {
     apply {
-        update_checksum<tuple_0, bit<16>>(false, { 16w0 }, meta.cksum.result, HashAlgorithm.csum16);
-        update_checksum<tuple_0, bit<16>>(hdr.e.isValid(), { 16w0 }, meta.cksum.result, HashAlgorithm.csum16);
-        update_checksum<tuple_0, bit<16>>(meta.b == 1w0, { 16w0 }, meta.cksum.result, HashAlgorithm.csum16);
+        update_checksum<tuple_0, bit<16>>(false, { 16w0 }, meta._cksum_result0, HashAlgorithm.csum16);
+        update_checksum<tuple_0, bit<16>>(hdr.e.isValid(), { 16w0 }, meta._cksum_result0, HashAlgorithm.csum16);
+        update_checksum<tuple_0, bit<16>>(meta._b1 == 1w0, { 16w0 }, meta._cksum_result0, HashAlgorithm.csum16);
     }
 }
 

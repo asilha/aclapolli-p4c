@@ -29,7 +29,8 @@ Communications Review in 2014:
 P4 itself is protocol-independent but allows programmers to express a
 rich set of data plane behaviors and protocols.  This back-end only
 supports the newest version of the P4 programming language,
-[P4_16](http://p4.org/wp-content/uploads/2016/12/P4_16-prerelease-Dec_16.html). The core P4 abstractions are:
+[P4_16](http://p4.org/wp-content/uploads/2016/12/P4_16-prerelease-Dec_16.html).
+The core P4 abstractions are:
 
 * Headers describe the format (the set of fields and their
   sizes) of each header within a packet.
@@ -179,16 +180,29 @@ dataplane/control-plane APIs.
 
 ### Dependencies
 
-Our eBPF programs require a Linux kernel with version 4.15 or newer.
+Our eBPF programs require a Linux kernel with version 4.15 or
+newer. The eBPF backend relies on
+[libbpf](https://github.com/libbpf/libbpf), which provides kernel- and
+distribution-independent header files. libbpf must be available in
+order to compile the generated eBPF C code into eBPF byte code. To
+install libbpf, run `python3 backends/ebpf/build_libbpf` in the p4c
+folder.
+
 In addition the following packages and programs are required to run the full test suite:
 
-- Clang 3.3 and llvm 3.7.1 or later are required. (Note: In some versions of Ubuntu Xenial (16.04.4) CMake crashes when checking for llvm. Until the bugfix is committed upstream, workarounds are available in the following issue: https://github.com/p4lang/p4c/issues/1376
+- Clang 3.3 and llvm 3.7.1 or later are required. (Note: In some
+  versions of Ubuntu Xenial (16.04.4) CMake crashes when checking for
+  llvm. Until the bugfix is committed upstream, workarounds are
+  available in the following issue:
+  https://github.com/p4lang/p4c/issues/1376
 
 - libpcap-dev to parse and generate .pcap files.
 
 - libelf-dev to compile C-programs to eBPF byte code.
 
-- iproute2 to use tc/ip commands to load eBPF programs.
+- zlib1g as libelf dependency.
+
+- a recent version of iproute2 that supports `clsact` to load eBPF programs via `tc` and `ip`.
 
 - net-tools (if not installed already)
 
@@ -203,7 +217,7 @@ Additionally, the eBPF compiler test suite has the following python dependencies
 You can install these using:
 ```
 $ sudo apt-get install clang llvm libpcap-dev libelf-dev iproute2 net-tools
-$ sudo pip install pyroute2 ply scapy
+$ pip3 install --user pyroute2 ply==3.8 scapy==2.4.0
 ```
 
 ### Supported capabilities
@@ -224,7 +238,7 @@ Here are some limitations imposed on the P4 programs:
 
 * arithmetic on data wider than 32 bits is not supported
 
-* eBPF does not offer support for ternary or LPM tables
+* eBPF does not offer support for ternary table matches
 
 ### Translating P4 to C
 
@@ -326,5 +340,76 @@ The following tests run ebpf programs:
 
 - `make check-ebpf`: runs the basic ebpf user-space tests
 - `make check-ebpf-bcc`: runs the user-space tests using bcc to compile ebpf
-- `sudo make check-ebpf-kernel`: runs the kernel-level tests.
+- `sudo -E make check-ebpf-kernel`: runs the kernel-level tests.
    Requires root privileges to install the ebpf program in the Linux kernel.
+   Note: by default the kernel ebpf tests are disabled; if you want to enable them
+   you can modify the file `backends/ebpf/CMakeLists.txt` by setting this variable to `True`:
+   `set (SUPPORTS_KERNEL True)`
+
+# How to inject custom extern function to the generated eBPF program?
+
+The P4 to eBPF compiler comes with the support for custom C extern functions. It means that a developer
+can write a custom, eBPF-compatible (acceptable by BPF verifier) C function and call it
+from the P4 program as a normal P4 action. As a result, P4 program can be extended with
+functionality, which is not supported natively by the P4 language. This feature is briefly
+described below.
+
+## Basic principles
+
+The C extern function can effectively enhance the functionality of P4 program. A programmer should be able to write own function, declare it in the P4 program and invoke from within P4 action or P4 control block.
+
+The C extern can use BPF helpers in order to make syscalls to eBPF subsystem. In particular, the C extern can define and have control over its own set of BPF maps. However, the C extern must not read or write to BPF maps implementing P4 tables and used by the main P4 program.
+
+The C extern could be also allowed to access packet’s payload, but this feature is not implemented in the first version of the C Custom Externs feature.
+
+## Definition
+
+The custom C extern function should be explicitly declared in the P4 program making use of that extern. For example:
+
+```C
+/** Declaration of the C extern function. */
+extern bool verify_ipv4_checksum(in IPv4_h iphdr);
+```
+
+## Compilation
+
+The `--emit-externs` flag must be appended to the `p4c-ebpf` compiler to instruct it that
+there are some C extern functions defined in the P4 program and compiler should not warn about them.
+
+```bash
+p4c-ebpf -o OUTPUT.c PROGRAM.p4 --emit-externs
+```
+
+Furthermore, the C file including definition of the C extern function should be provided
+to `clang`:
+
+```bash
+clang -O2 -include C-EXTERN-FILE.c -target bpf -c OUTPUT.c -o OUTPUT.o
+```
+
+## Calling convention
+
+* Basic types are converted from P4 representation to C representation as follows:
+
+  * fields shorter than 64 bits are rounded up to the nearest C unsigned integer (e.g. bit<1> → u8, bit<48> → u64).
+  * fields wider than 64 bits are converted to the array of u8. If the field has custom width (e.g. 123 bits) the last element of the array is also u8 (according to the first rule). For example, IPv6 address is converted from bit<128> to u8[16].
+  * **Boolean (bool)** type is converted to u8.
+  * **header** type is converted to C structure. The rules above are applied to each field of a header. Moreover, each C structure representing **header** type contains additional valid bit field, implemented as u8.
+  * **struct** type is converted to C structure. The rules above are applied to each field of a struct.
+
+* A direction of parameter passed to C extern function is handled as follows:
+  * **in** parameters are prepended with “const” qualifier in C and are passed by value to C extern function.
+  * **inout** parameters are are passed by reference to C extern function.
+  * **out** parameters are passed by reference to C extern function.
+
+* Using BPF maps:
+
+  * BPF maps can be defined inside the C extern function to provide statefulness. BPF map can be defined as follows:
+
+  ```C
+  REGISTER_START()
+  REGISTER_TABLE(<NAME>, BPF_MAP_TYPE_HASH, <KEY-SIZE>, <VALUE-SIZE>>, <MAX_ENTRIES>)
+  REGISTER_END()
+  ```
+
+  * The C extern function must not access BPF maps that are used to implement P4 tables and defined in the main C program generated from the P4 language.

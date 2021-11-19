@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header hdr {
@@ -8,10 +9,12 @@ header hdr {
 control compute(inout hdr h) {
     bit<8> n = 8w0;
     apply {
-        if (!h.isValid()) 
+        if (!h.isValid()) {
             return;
-        if (n > 8w0) 
+        }
+        if (n > 8w0) {
             h.setValid();
+        }
     }
 }
 

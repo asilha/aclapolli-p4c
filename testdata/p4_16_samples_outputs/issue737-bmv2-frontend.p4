@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header fixedLenHeader_h {
@@ -27,12 +28,15 @@ control VeryChecksum(inout Parsed_packet hdr, inout Meta meta) {
 
 control IngressP(inout Parsed_packet hdr, inout Meta m, inout standard_metadata_t standard_metadata) {
     apply {
-        if (m.metafield) 
+        if (m.metafield) {
             hdr.h.field = 64w3;
-        if (m.metafield == false) 
+        }
+        if (!m.metafield) {
             hdr.h.field = 64w5;
-        if (!m.metafield) 
+        }
+        if (!m.metafield) {
             hdr.h.field = 64w4;
+        }
     }
 }
 

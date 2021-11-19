@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header hdr {
@@ -48,7 +49,7 @@ control ingress(inout Header_t h, inout Meta_t m, inout standard_metadata_t stan
     @name("ingress.a") action a() {
         standard_meta.egress_spec = 9w0;
     }
-    @name("ingress.a_with_control_params") action a_with_control_params(bit<9> x) {
+    @name("ingress.a_with_control_params") action a_with_control_params(@name("x") bit<9> x) {
         standard_meta.egress_spec = x;
     }
     @name("ingress.t_lpm") table t_lpm_0 {
@@ -62,13 +63,9 @@ control ingress(inout Header_t h, inout Meta_t m, inout standard_metadata_t stan
         default_action = a();
         const entries = {
                         8w0x11 &&& 8w0xf0 : a_with_control_params(9w11);
-
                         8w0x12 : a_with_control_params(9w12);
-
                         default : a_with_control_params(9w13);
-
         }
-
     }
     apply {
         t_lpm_0.apply();

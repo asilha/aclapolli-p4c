@@ -216,6 +216,7 @@ class GeneralInliner : public AbstractInliner<InlineList, InlineSummary> {
     ReferenceMap* refMap;
     TypeMap* typeMap;
     InlineSummary::PerCaller* workToDo;
+
  public:
     explicit GeneralInliner(bool isv1) :
             refMap(new ReferenceMap()), typeMap(new TypeMap()), workToDo(nullptr) {
@@ -225,6 +226,14 @@ class GeneralInliner : public AbstractInliner<InlineList, InlineSummary> {
     }
     // controlled visiting order
     const IR::Node* preorder(IR::MethodCallStatement* statement) override;
+    /** Build the substitutions needed for args and locals of the thing being inlined.
+      * P4Block here should be either P4Control or P4Parser.
+      * P4BlockType should be either Type_Control or Type_Parser to match the P4Block.
+      */
+    template<class P4Block, class P4BlockType>
+    void inline_subst(P4Block *caller,
+                      IR::IndexedVector<IR::Declaration> P4Block::*blockLocals,
+                      const P4BlockType *P4Block::*blockType);
     const IR::Node* preorder(IR::P4Control* caller) override;
     const IR::Node* preorder(IR::P4Parser* caller) override;
     const IR::Node* preorder(IR::ParserState* state) override;
@@ -234,15 +243,14 @@ class GeneralInliner : public AbstractInliner<InlineList, InlineSummary> {
 /// Performs one round of inlining bottoms-up
 class InlinePass : public PassManager {
     InlineList toInline;
+
  public:
-    InlinePass(ReferenceMap* refMap, TypeMap* typeMap, EvaluatorPass* evaluator) {
-        passes.push_back(new TypeChecking(refMap, typeMap));
-        passes.push_back(new DiscoverInlining(&toInline, refMap, typeMap, evaluator));
-        passes.push_back(new InlineDriver<InlineList, InlineSummary>(
-            &toInline, new GeneralInliner(refMap->isV1())));
-        passes.push_back(new RemoveAllUnusedDeclarations(refMap));
-        setName("InlinePass");
-    }
+    InlinePass(ReferenceMap* refMap, TypeMap* typeMap, EvaluatorPass* evaluator)
+    : PassManager({
+        new TypeChecking(refMap, typeMap),
+        new DiscoverInlining(&toInline, refMap, typeMap, evaluator),
+        new InlineDriver<InlineList, InlineSummary>(&toInline, new GeneralInliner(refMap->isV1())),
+        new RemoveAllUnusedDeclarations(refMap) }) { }
 };
 
 /**
@@ -251,13 +259,24 @@ will be enough.  Multiple iterations are necessary only when instances are
 passed as arguments using constructor arguments.
 */
 class Inline : public PassRepeated {
+    static std::set<cstring> noPropagateAnnotations;
+
  public:
-    Inline(ReferenceMap* refMap, TypeMap* typeMap, EvaluatorPass* evaluator) {
-        passes.push_back(new InlinePass(refMap, typeMap, evaluator));
+    Inline(ReferenceMap* refMap, TypeMap* typeMap, EvaluatorPass* evaluator)
+    : PassManager({
+        new InlinePass(refMap, typeMap, evaluator),
         // After inlining the output of the evaluator changes, so
         // we have to run it again
-        passes.push_back(evaluator);
-        setName("Inline");
+        evaluator }) {}
+
+    /// Do not propagate annotation \p name during inlining
+    static void setAnnotationNoPropagate(cstring name) {
+        noPropagateAnnotations.emplace(name);
+    }
+
+    /// Is annotation \p name excluded from inline propagation?
+    static bool isAnnotationNoPropagate(cstring name) {
+        return noPropagateAnnotations.count(name);
     }
 };
 

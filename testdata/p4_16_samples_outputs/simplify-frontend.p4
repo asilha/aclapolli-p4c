@@ -1,13 +1,13 @@
 #include <core.p4>
 
 control c(out bool x) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
     }
-    bool tmp;
-    bool tmp_0;
-    bool tmp_1;
+    @name("c.tmp") bool tmp;
+    @name("c.tmp_0") bool tmp_0;
+    @name("c.tmp_1") bool tmp_1;
     @name("c.t1") table t1_0 {
         key = {
             x: exact @name("x") ;
@@ -29,14 +29,15 @@ control c(out bool x) {
     apply {
         x = true;
         tmp = t1_0.apply().hit;
-        if (!tmp) 
+        if (!tmp) {
             tmp_0 = false;
-        else {
+        } else {
             tmp_1 = t2_0.apply().hit;
             tmp_0 = tmp_1;
         }
-        if (tmp_0) 
+        if (tmp_0) {
             x = false;
+        }
     }
 }
 

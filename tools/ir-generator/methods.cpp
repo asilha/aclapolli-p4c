@@ -42,15 +42,21 @@ const ordered_map<cstring, IrMethod::info_t> IrMethod::Generate = {
             if (parent->name == "Node")
                 buf << "typeid(*this) == typeid(a)";
             else
-                buf << parent->name << "::operator==(static_cast<const "
-                    << parent->name << " &>(a))";
+                buf << parent->qualified_name(cl->containedIn) << "::operator==(static_cast<const "
+                    << parent->qualified_name(cl->containedIn) << " &>(a))";
             first = false; }
         for (auto f : *cl->getFields()) {
             if (*f->type == NamedType::SourceInfo()) continue;  // FIXME -- deal with SourcInfo
             if (!first)
                 buf << std::endl << cl->indent << cl->indent << "&& ";
             first = false;
-            buf << f->name << " == a." << f->name; }
+            if (auto *arr = dynamic_cast<const ArrayType *>(f->type)) {
+                for (int i = 0; i < arr->size; ++i) {
+                    if (i != 0)
+                        buf << std::endl << cl->indent << cl->indent << "&& ";
+                    buf << f->name << "[" << i << "] == a." << f->name << "[" << i << "]"; }
+            } else {
+                buf << f->name << " == a." << f->name; } }
         if (first) {  // a nested class with no fields?
             buf << "false"; }
         buf << ";" << std::endl;
@@ -58,39 +64,47 @@ const ordered_map<cstring, IrMethod::info_t> IrMethod::Generate = {
         return buf.str(); } } },
 { "equiv", { &NamedType::Bool(),
              { new IrField(new ReferenceType(new NamedType(IrClass::nodeClass()), true), "a_") },
-             CONST + IN_IMPL + OVERRIDE,
-    [](IrClass *cl, Util::SourceInfo, cstring) -> cstring {
+             EXTEND + CONST + IN_IMPL + OVERRIDE,
+    [](IrClass *cl, Util::SourceInfo srcInfo, cstring body) -> cstring {
         std::stringstream buf;
         buf << "{" << std::endl;
         buf << cl->indent << cl->indent
             << "if (static_cast<const Node *>(this) == &a_) return true;\n";
-        buf << cl->indent << cl->indent << "if (typeid(*this) != typeid(a_)) return false;\n";
         if (auto parent = cl->getParent()) {
-            if (parent && parent->name != "Node")
-                buf << cl->indent << cl->indent << "if (!" << parent->name
-                    << "::equiv(a_)) return false;\n"; }
-        bool first = true;
-        for (auto f : *cl->getFields()) {
-            if (*f->type == NamedType::SourceInfo()) continue;  // FIXME -- deal with SourcInfo
-            if (first) {
-                buf << cl->indent << cl->indent << "auto &a = static_cast<const " << cl->name
-                                                << " &>(a_);\n";
-                buf << cl->indent << cl->indent << "return ";
-                first = false;
+            if (parent->name == "Node") {
+                buf << cl->indent << cl->indent << "if (typeid(*this) != typeid(a_)) "
+                                                   "return false;\n";
             } else {
-                buf << std::endl << cl->indent << cl->indent << "&& "; }
-            if (f->type->resolve(cl->containedIn) == nullptr) {
-                // This is not an IR pointer
-                buf << f->name << " == a." << f->name;
-            } else if (f->isInline) {
-                buf << f->name << ".equiv(a." << f->name << ")";
-            } else {
-                buf << "(" << f->name << " ? a." << f->name << " ? "
-                    << f->name << "->equiv(*a." << f->name << ")"
-                    << " : false : a." << f->name << " == nullptr)"; } }
-        if (first) {  // no fields?
-            buf << cl->indent << cl->indent << "return true"; }
-        buf << ";" << std::endl;
+                buf << cl->indent << cl->indent << "if (!"
+                    << parent->qualified_name(cl->containedIn)
+                    << "::equiv(a_)) return false;\n"; } }
+        if (body) {
+            buf << cl->indent << cl->indent << "auto &a = static_cast<const " << cl->name
+                                            << " &>(a_);\n";
+            buf << LineDirective(srcInfo, true) << body;
+        } else {
+            bool first = true;
+            for (auto f : *cl->getFields()) {
+                if (*f->type == NamedType::SourceInfo()) continue;  // FIXME -- deal with SourcInfo
+                if (first) {
+                    buf << cl->indent << cl->indent << "auto &a = static_cast<const " << cl->name
+                                                    << " &>(a_);\n";
+                    buf << cl->indent << cl->indent << "return ";
+                    first = false;
+                } else {
+                    buf << std::endl << cl->indent << cl->indent << "&& "; }
+                if (f->type->resolve(cl->containedIn) == nullptr) {
+                    // This is not an IR pointer
+                    buf << f->name << " == a." << f->name;
+                } else if (f->isInline) {
+                    buf << f->name << ".equiv(a." << f->name << ")";
+                } else {
+                    buf << "(" << f->name << " ? a." << f->name << " ? "
+                        << f->name << "->equiv(*a." << f->name << ")"
+                        << " : false : a." << f->name << " == nullptr)"; } }
+            if (first) {  // no fields?
+                buf << cl->indent << cl->indent << "return true"; }
+            buf << ";" << std::endl; }
         buf << cl->indent << "}";
         return buf.str(); } } },
 { "operator<<", { &ReferenceType::OstreamRef, { new IrField(&ReferenceType::OstreamRef, "out") },
@@ -108,7 +122,8 @@ const ordered_map<cstring, IrMethod::info_t> IrMethod::Generate = {
         std::stringstream buf;
         buf << "{" << std::endl;
         if (auto parent = cl->getParent())
-            buf << cl->indent << parent->name << "::visit_children(v);" << std::endl;
+            buf << cl->indent << parent->qualified_name(cl->containedIn)
+                << "::visit_children(v);" << std::endl;
         for (auto f : *cl->getFields()) {
             if (f->type->resolve(cl->containedIn) == nullptr)
                 // This is not an IR pointer
@@ -157,7 +172,8 @@ const ordered_map<cstring, IrMethod::info_t> IrMethod::Generate = {
         std::stringstream buf;
         buf << "{" << std::endl;
         if (auto parent = cl->getParent())
-            buf << cl->indent << parent->name << "::dump_fields(out);" << std::endl;
+            buf << cl->indent << parent->qualified_name(cl->containedIn)
+                << "::dump_fields(out);" << std::endl;
         bool needed = false;
         for (auto f : *cl->getFields()) {
             if (*f->type == NamedType::SourceInfo()) continue;  // FIXME -- deal with SourcInfo
@@ -176,7 +192,8 @@ const ordered_map<cstring, IrMethod::info_t> IrMethod::Generate = {
         std::stringstream buf;
         buf << "{" << std::endl;
         if (auto parent = cl->getParent())
-            buf << cl->indent << parent->name << "::toJSON(json);" << std::endl;
+            buf << cl->indent << parent->qualified_name(cl->containedIn)
+                << "::toJSON(json);" << std::endl;
         for (auto f : *cl->getFields()) {
             if (*f->type == NamedType::SourceInfo()) continue;  // FIXME -- deal with SourcInfo
             if (!f->isInline && f->nullOK)
@@ -190,7 +207,7 @@ const ordered_map<cstring, IrMethod::info_t> IrMethod::Generate = {
     [](IrClass *cl, Util::SourceInfo, cstring) -> cstring {
         std::stringstream buf;
         if (auto parent = cl->getParent())
-            buf << ": " << parent->name << "(json)";
+            buf << ": " << parent->qualified_name(cl->containedIn) << "(json)";
         buf << " {" << std::endl;
         for (auto f : *cl->getFields()) {
             if (*f->type == NamedType::SourceInfo()) continue;  // FIXME -- deal with SourcInfo
@@ -289,7 +306,7 @@ void IrClass::generateMethods() {
                 // By default predefined methods return a pointer to their
                 // concrete type.
                 m->rtype = new PointerType(new NamedType(this)); }
-            if (info.flags & EXTEND)
+            if (m->isUser && (info.flags & EXTEND))
                 m->body = info.create(this, m->srcInfo, m->body);
             if (info.flags & FRIEND)
                 m->isFriend = true;

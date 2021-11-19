@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -103,12 +104,12 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
     @name(".no_action") action no_action() {
     }
-    @name(".ing_meter_set") action ing_meter_set(bit<16> meter_) {
-        meta.ingress_metadata.ing_meter = meter_;
+    @name(".ing_meter_set") action ing_meter_set(@name("meter_") bit<16> meter_1) {
+        meta.ingress_metadata.ing_meter = meter_1;
     }
     @name(".storm_control") table storm_control_0 {
         actions = {

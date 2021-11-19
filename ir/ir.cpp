@@ -36,15 +36,15 @@ int IR::Declaration::nextId = 0;
 int IR::This::nextId = 0;
 
 const Type_Method* P4Control::getConstructorMethodType() const {
-    return new Type_Method(getTypeParameters(), type, constructorParams);
+    return new Type_Method(getTypeParameters(), type, constructorParams, getName());
 }
 
 const Type_Method* P4Parser::getConstructorMethodType() const {
-    return new Type_Method(getTypeParameters(), type, constructorParams);
+    return new Type_Method(getTypeParameters(), type, constructorParams, getName());
 }
 
 const Type_Method* Type_Package::getConstructorMethodType() const {
-    return new Type_Method(getTypeParameters(), this, constructorParams);
+    return new Type_Method(getTypeParameters(), this, constructorParams, getName());
 }
 
 Util::Enumerator<const IR::IDeclaration*>* IGeneralNamespace::getDeclsByName(cstring name) const {
@@ -52,6 +52,17 @@ Util::Enumerator<const IR::IDeclaration*>* IGeneralNamespace::getDeclsByName(cst
             [name](const IDeclaration* d)
             { CHECK_NULL(d); return name == d->getName().name; };
     return getDeclarations()->where(filter);
+}
+
+Util::Enumerator<const IDeclaration*>* INestedNamespace::getDeclarations() const {
+    Util::Enumerator<const IDeclaration*>* rv = nullptr;
+    for (auto nested : getNestedNamespaces()) {
+        if (nested) {
+            if (rv)
+                rv = rv->concat(nested->getDeclarations());
+            else
+                rv = nested->getDeclarations(); } }
+    return rv ? rv : new Util::EmptyEnumerator<const IDeclaration*>;
 }
 
 bool IFunctional::callMatches(const Vector<Argument> *arguments) const {
@@ -93,7 +104,8 @@ void IGeneralNamespace::checkDuplicateDeclarations() const {
         IR::ID name = decl->getName();
         auto f = seen.find(name.name);
         if (f != seen.end()) {
-            ::error("Duplicate declaration of %1%: previous declaration at %2%",
+            ::error(ErrorType::ERR_DUPLICATE,
+                    "Duplicate declaration of %1%: previous declaration at %2%",
                     name, f->second.srcInfo);
         }
         seen.emplace(name.name, name);
@@ -104,24 +116,25 @@ void P4Parser::checkDuplicates() const {
     for (auto decl : states) {
         auto prev = parserLocals.getDeclaration(decl->getName().name);
         if (prev != nullptr)
-            ::error("State %1% has same name as %2%", decl, prev);
+            ::error(ErrorType::ERR_DUPLICATE,
+                    "State %1% has same name as %2%", decl, prev);
     }
 }
 
 bool Type_Stack::sizeKnown() const { return size->is<Constant>(); }
 
-unsigned Type_Stack::getSize() const {
+size_t Type_Stack::getSize() const {
     if (!sizeKnown())
         BUG("%1%: Size not yet known", size);
     auto cst = size->to<IR::Constant>();
     if (!cst->fitsInt()) {
-        ::error("Index too large: %1%", cst);
+        ::error(ErrorType::ERR_OVERLIMIT, "Index too large: %1%", cst);
         return 0;
     }
     int size = cst->asInt();
     if (size <= 0)
-        ::error("Illegal array size: %1%", cst);
-    return static_cast<unsigned>(size);
+        ::error(ErrorType::ERR_OVERLIMIT, "Illegal array size: %1%", cst);
+    return static_cast<size_t>(size);
 }
 
 const Method* Type_Extern::lookupMethod(IR::ID name, const Vector<Argument>* arguments) const {
@@ -133,12 +146,12 @@ const Method* Type_Extern::lookupMethod(IR::ID name, const Vector<Argument>* arg
             if (result == nullptr) {
                 result = m;
             } else {
-                ::error("Ambiguous method %1%", name);
+                ::error(ErrorType::ERR_DUPLICATE, "Ambiguous method %1%", name);
                 if (!reported) {
-                    ::error("Candidate is %1%", result);
+                    ::error(ErrorType::ERR_DUPLICATE, "Candidate is %1%", result);
                     reported = true;
                 }
-                ::error("Candidate is %1%", m);
+                ::error(ErrorType::ERR_DUPLICATE, "Candidate is %1%", m);
                 return nullptr;
             }
         }
@@ -148,12 +161,12 @@ const Method* Type_Extern::lookupMethod(IR::ID name, const Vector<Argument>* arg
 
 const Type_Method*
 Type_Parser::getApplyMethodType() const {
-    return new Type_Method(applyParams);
+    return new Type_Method(applyParams, getName());
 }
 
 const Type_Method*
 Type_Control::getApplyMethodType() const {
-    return new Type_Method(applyParams);
+    return new Type_Method(applyParams, getName());
 }
 
 const IR::Path* ActionListElement::getPath() const {
@@ -170,7 +183,7 @@ P4Table::getApplyMethodType() const {
     // Synthesize a new type for the return
     auto actions = properties->getProperty(IR::TableProperties::actionsPropertyName);
     if (actions == nullptr) {
-        ::error("Table %1% does not contain a list of actions", this);
+        ::error(ErrorType::ERR_INVALID, "%1%: table does not contain a list of actions", this);
         return nullptr;
     }
     if (!actions->value->is<IR::ActionList>())
@@ -178,9 +191,10 @@ P4Table::getApplyMethodType() const {
             actions);
     auto alv = actions->value->to<IR::ActionList>();
     auto hit = new IR::StructField(IR::Type_Table::hit, IR::Type_Boolean::get());
+    auto miss = new IR::StructField(IR::Type_Table::miss, IR::Type_Boolean::get());
     auto label = new IR::StructField(IR::Type_Table::action_run, new IR::Type_ActionEnum(alv));
-    auto rettype = new IR::Type_Struct(ID(name), { hit, label });
-    auto applyMethod = new IR::Type_Method(rettype, new IR::ParameterList());
+    auto rettype = new IR::Type_Struct(ID(name), { hit, miss, label });
+    auto applyMethod = new IR::Type_Method(rettype, new IR::ParameterList(), getName());
     return applyMethod;
 }
 
@@ -191,7 +205,7 @@ void Block::setValue(const Node* node, const CompileTimeValue* value) {
     CHECK_NULL(node);
     auto it = constantValue.find(node);
     if (it != constantValue.end())
-        BUG_CHECK(value == constantValue[node],
+        BUG_CHECK(value->equiv(*constantValue[node]),
                       "%1% already set in %2% to %3%, not %4%",
                   node, this, value, constantValue[node]);
     else
@@ -226,12 +240,6 @@ InstantiatedBlock::findParameterValue(cstring paramName) const {
     return getValue(param->getNode());
 }
 
-Util::Enumerator<const IDeclaration*>* P4Action::getDeclarations() const
-{ return body->getDeclarations(); }
-
-const IDeclaration* P4Action::getDeclByName(cstring name) const
-{ return body->components.getDeclaration(name); }
-
 Util::Enumerator<const IDeclaration*>* P4Program::getDeclarations() const {
     return objects.getEnumerator()
             ->as<const IDeclaration*>()
@@ -242,17 +250,18 @@ const IR::PackageBlock* ToplevelBlock::getMain() const {
     auto program = getProgram();
     auto mainDecls = program->getDeclsByName(IR::P4Program::main)->toVector();
     if (mainDecls->size() == 0) {
-        ::warning("Program does not contain a `%s' module", IR::P4Program::main);
+        ::warning(ErrorType::WARN_MISSING,
+                  "Program does not contain a `%s' module", IR::P4Program::main);
         return nullptr;
     }
     auto main = mainDecls->at(0);
     if (mainDecls->size() > 1) {
-        ::error("Program has multiple `%s' modules: %1%, %2%",
+        ::error(ErrorType::ERR_DUPLICATE, "Program has multiple `%s' instances: %1%, %2%",
                 IR::P4Program::main, main->getNode(), mainDecls->at(1)->getNode());
         return nullptr;
     }
     if (!main->is<IR::Declaration_Instance>()) {
-        ::error("%s must be a package declaration", main->getNode());
+        ::error(ErrorType::ERR_INVALID, "%1$: must be a package declaration", main->getNode());
         return nullptr;
     }
     auto block = getValue(main->getNode());

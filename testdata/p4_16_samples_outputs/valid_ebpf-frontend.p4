@@ -44,7 +44,7 @@ parser prs(packet_in p, out Headers_t headers) {
 }
 
 control pipe(inout Headers_t headers, out bool pass) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
     @name("pipe.counters") CounterArray(32w10, true) counters_0;
     @name("pipe.invalidate") action invalidate() {
@@ -63,8 +63,7 @@ control pipe(inout Headers_t headers, out bool pass) {
         if (headers.ipv4.isValid()) {
             counters_0.increment(headers.ipv4.dstAddr);
             pass = true;
-        }
-        else {
+        } else {
             t_0.apply();
             pass = false;
         }

@@ -1,5 +1,4 @@
 control ctrl() {
-    bool tmp;
     @name("ctrl.e") action e() {
         exit;
     }
@@ -10,11 +9,11 @@ control ctrl() {
         default_action = e();
     }
     apply {
-        tmp = t_0.apply().hit;
-        if (tmp) 
+        if (t_0.apply().hit) {
             t_0.apply();
-        else 
+        } else {
             t_0.apply();
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header ethernet_t {
@@ -28,26 +29,25 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    standard_metadata_t standard_metadata_0;
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_5() {
+    @noWarn("unused") @name(".NoAction") action NoAction_5() {
     }
-    @name(".NoAction") action NoAction_6() {
+    @noWarn("unused") @name(".NoAction") action NoAction_6() {
     }
-    @name(".NoAction") action NoAction_7() {
+    @noWarn("unused") @name(".NoAction") action NoAction_7() {
     }
-    @name(".send") action send(bit<9> port) {
+    @name(".send") action send(@name("port") bit<9> port) {
         standard_metadata.egress_port = port;
     }
-    @name(".send") action send_2(bit<9> port) {
-        standard_metadata.egress_port = port;
+    @name(".send") action send_2(@name("port") bit<9> port_2) {
+        standard_metadata.egress_port = port_2;
     }
     @name(".discard") action discard() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".discard") action discard_2() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".a1") table a1_0 {
         actions = {
@@ -73,17 +73,17 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         size = 1024;
         default_action = NoAction_5();
     }
-    @name(".send") action _send_0(bit<9> port) {
-        standard_metadata_0.egress_port = port;
+    @name(".send") action _send_0(@name("port") bit<9> port_3) {
+        standard_metadata.egress_port = port_3;
     }
-    @name(".send") action _send_2(bit<9> port) {
-        standard_metadata_0.egress_port = port;
+    @name(".send") action _send_2(@name("port") bit<9> port_4) {
+        standard_metadata.egress_port = port_4;
     }
     @name(".discard") action _discard_0() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".discard") action _discard_2() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".c1") table _c1 {
         actions = {
@@ -109,78 +109,23 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         size = 1024;
         default_action = NoAction_7();
     }
-    @hidden action act() {
-        standard_metadata_0.ingress_port = standard_metadata.ingress_port;
-        standard_metadata_0.egress_spec = standard_metadata.egress_spec;
-        standard_metadata_0.egress_port = standard_metadata.egress_port;
-        standard_metadata_0.clone_spec = standard_metadata.clone_spec;
-        standard_metadata_0.instance_type = standard_metadata.instance_type;
-        standard_metadata_0.drop = standard_metadata.drop;
-        standard_metadata_0.recirculate_port = standard_metadata.recirculate_port;
-        standard_metadata_0.packet_length = standard_metadata.packet_length;
-        standard_metadata_0.checksum_error = standard_metadata.checksum_error;
-        standard_metadata_0.parser_error = standard_metadata.parser_error;
-    }
-    @hidden action act_0() {
-        standard_metadata.egress_port = standard_metadata_0.egress_port;
-    }
-    @hidden action act_1() {
-        standard_metadata_0.ingress_port = standard_metadata.ingress_port;
-        standard_metadata_0.egress_spec = standard_metadata.egress_spec;
-        standard_metadata_0.egress_port = standard_metadata.egress_port;
-        standard_metadata_0.clone_spec = standard_metadata.clone_spec;
-        standard_metadata_0.instance_type = standard_metadata.instance_type;
-        standard_metadata_0.drop = standard_metadata.drop;
-        standard_metadata_0.recirculate_port = standard_metadata.recirculate_port;
-        standard_metadata_0.packet_length = standard_metadata.packet_length;
-        standard_metadata_0.checksum_error = standard_metadata.checksum_error;
-        standard_metadata_0.parser_error = standard_metadata.parser_error;
-    }
-    @hidden action act_2() {
-        standard_metadata.egress_port = standard_metadata_0.egress_port;
-    }
-    @hidden table tbl_act {
-        actions = {
-            act();
-        }
-        const default_action = act();
-    }
-    @hidden table tbl_act_0 {
-        actions = {
-            act_0();
-        }
-        const default_action = act_0();
-    }
-    @hidden table tbl_act_1 {
-        actions = {
-            act_1();
-        }
-        const default_action = act_1();
-    }
-    @hidden table tbl_act_2 {
-        actions = {
-            act_2();
-        }
-        const default_action = act_2();
-    }
     apply {
         if (standard_metadata.ingress_port & 9w0x1 == 9w1) {
             a1_0.apply();
-            tbl_act.apply();
-            if (standard_metadata.ingress_port & 9w0x2 == 9w1) 
+            if (standard_metadata.ingress_port & 9w0x2 == 9w1) {
                 _c1.apply();
-            if (standard_metadata.ingress_port & 9w0x4 == 9w1) 
+            }
+            if (standard_metadata.ingress_port & 9w0x4 == 9w1) {
                 _c2.apply();
-            tbl_act_0.apply();
-        }
-        else {
+            }
+        } else {
             b1_0.apply();
-            tbl_act_1.apply();
-            if (standard_metadata.ingress_port & 9w0x2 == 9w1) 
+            if (standard_metadata.ingress_port & 9w0x2 == 9w1) {
                 _c1.apply();
-            if (standard_metadata.ingress_port & 9w0x4 == 9w1) 
+            }
+            if (standard_metadata.ingress_port & 9w0x4 == 9w1) {
                 _c2.apply();
-            tbl_act_2.apply();
+            }
         }
     }
 }

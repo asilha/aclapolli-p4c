@@ -32,11 +32,20 @@ OPTION (ENABLE_DOCS "Build the documentation" OFF)
 OPTION (ENABLE_GTESTS "Enable building and running GTest unit tests" ON)
 OPTION (ENABLE_BMV2 "Build the BMV2 backend (required for the full test suite)" ON)
 OPTION (ENABLE_EBPF "Build the EBPF backend (required for the full test suite)" ON)
+OPTION (ENABLE_UBPF "Build the uBPF backend (required for the full test suite)" ON)
+OPTION (ENABLE_DPDK "Build the DPDK backend (required for the full test suite)" ON)
 OPTION (ENABLE_P4TEST "Build the P4Test backend (required for the full test suite)" ON)
 OPTION (ENABLE_P4C_GRAPHS "Build the p4c-graphs backend" ON)
 OPTION (ENABLE_PROTOBUF_STATIC "Link against Protobuf statically" ON)
 OPTION (ENABLE_GC "Use libgc" ON)
 OPTION (ENABLE_MULTITHREAD "Use multithreading" OFF)
+OPTION (ENABLE_GMP "Use GMP library" ON)
+
+set (P4C_DRIVER_NAME "p4c" CACHE STRING "Customize the name of the driver script")
+
+set(MAX_LOGGING_LEVEL 10 CACHE STRING "Control the maximum logging level for -T logs")
+set_property(CACHE MAX_LOGGING_LEVEL PROPERTY STRINGS 0 1 2 3 4 5 6 7 8 9 10)
+add_definitions(-DMAX_LOGGING_LEVEL=${MAX_LOGGING_LEVEL})
 
 if (NOT CMAKE_BUILD_TYPE)
   set (CMAKE_BUILD_TYPE "RELEASE")
@@ -48,7 +57,7 @@ if (NOT $ENV{P4C_VERSION} STREQUAL "")
 else()
   # Semantic version numbering: <major>.<minor>.<patch>[-rcX]
   # Examples: 0.5.1, 1.0.0-rc1, 1.0.1-alpha
-  set (P4C_SEM_VERSION_STRING "1.1.0-rc1")
+  set (P4C_SEM_VERSION_STRING "1.2.0+g202103291035~a69e52")
   string (REGEX MATCH "([0-9]+)\\.([0-9]+)\\.([0-9]+)([-0-9a-z\\.]*).*"
     __p4c_version ${P4C_SEM_VERSION_STRING})
   set (P4C_VERSION_MAJOR ${CMAKE_MATCH_1})
@@ -60,7 +69,7 @@ else()
     OUTPUT_STRIP_TRAILING_WHITESPACE
     RESULT_VARIABLE rc
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
-  set (P4C_VERSION "${P4C_SEM_VERSION_STRING} (SHA: ${P4C_GIT_SHA})")
+  set (P4C_VERSION "${P4C_SEM_VERSION_STRING} (SHA: ${P4C_GIT_SHA} BUILD: ${CMAKE_BUILD_TYPE})")
 endif()
 include(P4CUtils)
 include(UnifiedBuild)
@@ -71,9 +80,9 @@ set (P4C_CXX_FLAGS "")
 set (P4C_LIB_DEPS)
 
 # required tools and libraries
-find_package (PythonInterp REQUIRED)
-find_package (FLEX REQUIRED)
-find_package (BISON 3.0.2 REQUIRED)
+find_package (PythonInterp 3 REQUIRED)
+find_package (FLEX 2.0 REQUIRED)
+find_package (BISON 3.0 REQUIRED)
 if (ENABLE_PROTOBUF_STATIC)
   set(SAVED_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
@@ -98,19 +107,26 @@ if (ENABLE_GC)
 endif ()
 if (ENABLE_MULTITHREAD)
   add_definitions(-DMULTITHREAD)
-  set(THREADS_PREFER_PTHREAD_FLAG ON)
-  find_package(Threads REQUIRED)
-  set (P4C_LIB_DEPS "${P4C_LIB_DEPS};${CMAKE_THREAD_LIBS_INIT}")
 endif()
-find_package (LibGmp REQUIRED)
+# we require -pthread to make std::call_once work, even if we're not using threads...
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+set (P4C_LIB_DEPS "${P4C_LIB_DEPS};${CMAKE_THREAD_LIBS_INIT}")
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${PROTOBUF_INCLUDE_DIRS})
-include_directories(${LIBGMP_INCLUDE_DIR})
 include_directories(${LIBGC_INCLUDE_DIR})
 set (HAVE_LIBBOOST_IOSTREAMS 1)
-set (HAVE_LIBGMP 1)
-set (HAVE_LIBGMPXX 1)
-set (P4C_LIB_DEPS "${P4C_LIB_DEPS};${Boost_LIBRARIES};${LIBGMP_LIBRARIES};${LIBGC_LIBRARIES}")
+set (P4C_LIB_DEPS "${P4C_LIB_DEPS};${Boost_LIBRARIES}")
+if (ENABLE_GMP)
+  find_package (LibGmp REQUIRED)
+  include_directories(${LIBGMP_INCLUDE_DIR})
+  set (HAVE_LIBGMP 1)
+  set (HAVE_LIBGMPXX 1)
+  set (P4C_LIB_DEPS "${P4C_LIB_DEPS};${LIBGMP_LIBRARIES}")
+endif ()
+if (ENABLE_GC)
+  set (P4C_LIB_DEPS "${P4C_LIB_DEPS};${LIBGC_LIBRARIES}")
+endif ()
 
 # other required libraries
 p4c_add_library (rt clock_gettime HAVE_CLOCK_GETTIME)
@@ -126,7 +142,9 @@ check_include_file_cxx (cxxabi.h HAVE_CXXABI_H)
 
 # set libraries to be used with check_function_exists
 set (CMAKE_REQUIRED_LIBRARIES_PRECHECK ${CMAKE_REQUIRED_LIBRARIES})
-set (CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} ${LIBGC_LIBRARIES})
+if (ENABLE_GC)
+  set (CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} ${LIBGC_LIBRARIES})
+endif ()
 
 include (CheckFunctionExists)
 check_function_exists (memchr HAVE_MEMCHR)
@@ -174,6 +192,8 @@ add_cxx_compiler_option ("-Wall")
 add_cxx_compiler_option ("-Wextra")
 add_cxx_compiler_option ("-Wno-overloaded-virtual")
 add_cxx_compiler_option ("-Wno-deprecated")
+add_cxx_compiler_option ("-Wno-deprecated-declarations")
+# add_cxx_compiler_option ("-fsanitize=null")
 
 # If we're on GCC, use the gold linker if available.
 if(CMAKE_COMPILER_IS_GNUCC)
@@ -253,6 +273,16 @@ foreach (ext ${p4c_extensions})
   endif()
 endforeach(ext)
 
+# With the current implementation of ir-generator, all targets shares the
+# same ir-generated.h and ir-generated.cpp file, which means all targets
+# share the same set of IR classes (frontend and backend). The DPDK backend
+# introduces additional IR classes and cpp sources which need to be added to
+# EXTENSION_FRONTEND_SOURCES. We need to pupulate EXTENSION_FRONTEND_SOURCES
+# before it is added to libfrontend.a in frontends/CMakeList.txt
+if (ENABLE_DPDK)
+    add_subdirectory (backends/dpdk)
+endif ()
+
 add_subdirectory (frontends)
 add_subdirectory (midend)
 add_subdirectory (control-plane)
@@ -262,6 +292,9 @@ if (ENABLE_BMV2)
 endif ()
 if (ENABLE_EBPF)
     add_subdirectory (backends/ebpf)
+endif ()
+if (ENABLE_UBPF)
+    add_subdirectory (backends/ubpf)
 endif ()
 if (ENABLE_P4TEST)
     add_subdirectory (backends/p4test)
@@ -309,10 +342,19 @@ add_custom_command (OUTPUT ${IR_GENERATED_SRCS}
 add_custom_target(genIR DEPENDS ${IR_GENERATED_SRCS})
 
 # Header files
+# p4test needs all the backend include files, whether the backend is enabled or not
+# Note that we only provide the headers for the build env, they are only installed by the
+# backend specific target.
+set (OTHER_HEADERS
+  backends/ebpf/p4include/ebpf_model.p4
+  )
 add_custom_target(update_includes ALL
-  #FIXME -- should only run this when headers change -- how to accomplish that?
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${P4C_SOURCE_DIR}/p4include ${P4C_BINARY_DIR}/p4include
-)
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${P4C_BINARY_DIR}/p4include
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${P4C_SOURCE_DIR}/p4include/*.p4 ${P4C_BINARY_DIR}/p4include
+  COMMAND for h in ${OTHER_HEADERS} \; do
+    ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/\$$h ${P4C_BINARY_DIR}/p4include \;
+  done
+  )
 
 # Installation
 # Targets install themselves. Here we install the core headers
@@ -401,4 +443,12 @@ if (ENABLE_DOCS AND DOXYGEN_FOUND)
     DESTINATION ${P4C_ARTIFACTS_OUTPUT_DIRECTORY}/docs)
 endif()
 
-# \TODO: packaging
+# Packaging:
+SET(CPACK_SOURCE_GENERATOR "TXZ")
+SET(CPACK_SOURCE_PACKAGE_FILE_NAME
+   "p4c-${P4C_SEM_VERSION_STRING}")
+SET(CPACK_SOURCE_IGNORE_FILES
+   "${PROJECT_SOURCE_DIR}/${CMAKE_PROJECT_NAME}-*;${PROJECT_SOURCE_DIR}/${CMAKE_PROJECT_NAME}_*;/build/;/.git/;/config.log;/CMakeFiles/;CMakeCache.txt$;.tar.gz$;/_CPack_Packages;/Makefile$;~$;/build-deb;/clean-deb;/filter-empty-entries;/make-symbols;/make-ppa;/make-deb;/debian.conf;/make-rpm;/rpm.conf;${CPACK_SOURCE_IGNORE_FILES}")
+INCLUDE(CPack)
+
+ADD_CUSTOM_TARGET(dist COMMAND ${CMAKE_MAKE_PROGRAM} clean package_source)

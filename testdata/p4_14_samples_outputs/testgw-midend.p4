@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -45,15 +46,15 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_4() {
+    @noWarn("unused") @name(".NoAction") action NoAction_4() {
     }
-    @name(".NoAction") action NoAction_5() {
+    @noWarn("unused") @name(".NoAction") action NoAction_5() {
     }
-    @name(".route_eth") action route_eth(bit<9> egress_spec, bit<48> src_addr) {
-        standard_metadata.egress_spec = egress_spec;
-        hdr.ethernet.src_addr = src_addr;
+    @name(".route_eth") action route_eth(@name("egress_spec") bit<9> egress_spec_1, @name("src_addr") bit<48> src_addr_1) {
+        standard_metadata.egress_spec = egress_spec_1;
+        hdr.ethernet.src_addr = src_addr_1;
     }
     @name(".noop") action noop() {
     }
@@ -61,11 +62,11 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name(".noop") action noop_4() {
     }
-    @name(".setf2") action setf2(bit<32> val) {
+    @name(".setf2") action setf2(@name("val") bit<32> val) {
         hdr.data.f2 = val;
     }
-    @name(".setf1") action setf1(bit<32> val) {
-        hdr.data.f1 = val;
+    @name(".setf1") action setf1(@name("val") bit<32> val_2) {
+        hdr.data.f1 = val_2;
     }
     @name(".routing") table routing_0 {
         actions = {
@@ -102,10 +103,11 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     apply {
         routing_0.apply();
-        if (hdr.data.f5 != hdr.data.f6) 
+        if (hdr.data.f5 != hdr.data.f6) {
             test1_0.apply();
-        else 
+        } else {
             test2_0.apply();
+        }
     }
 }
 

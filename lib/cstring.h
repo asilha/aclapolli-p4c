@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef P4C_LIB_CSTRING_H_
-#define P4C_LIB_CSTRING_H_
+#ifndef _LIB_CSTRING_H_
+#define _LIB_CSTRING_H_
 
 #include <cstring>
 #include <cstddef>
@@ -169,9 +169,16 @@ class cstring {
     bool isNull() const { return str == nullptr; }
     bool isNullOrEmpty() const { return str == nullptr ? true : str[0] == 0; }
 
+    // iterate over characters
+    const char *begin() const { return str; }
+    const char *end() const { return str ? str + strlen(str) : str; }
+
     // Search for characters. Linear time.
     const char *find(int c) const { return str ? strchr(str, c) : nullptr; }
     const char *findlast(int c) const { return str ? strrchr(str, c) : str; }
+
+    // Search for substring
+    const char *find(const char *s) const { return str ? strstr(str, s) : nullptr; }
 
     // Equality tests with other cstrings. Constant time.
     bool operator==(cstring a) const { return str == a.str; }
@@ -220,6 +227,14 @@ class cstring {
     cstring replace(cstring find, cstring replace) const;
     cstring exceptLast(size_t count) { return substr(0, size() - count); }
 
+    // trim leading and trailing whitespace (or other)
+    cstring trim(const char *ws = " \t\r\n") const {
+        if (!str) return *this;
+        const char *start = str + strspn(str, ws);
+        size_t len = strlen(start);
+        while (len > 0 && strchr(ws, start[len-1])) --len;
+        return cstring(start, len); }
+
     // Useful singletons.
     static cstring newline;
     static cstring empty;
@@ -242,6 +257,9 @@ class cstring {
     /// @return the total size in bytes of all interned strings. @count is set
     /// to the total number of interned strings.
     static size_t cache_size(size_t &count);
+
+    // convert the cstring to upper case
+    cstring toUpper();
 };
 
 inline bool operator==(const char *a, cstring b) { return b == a; }
@@ -271,7 +289,7 @@ inline std::string& operator+=(std::string& a, cstring b) {
     return a; }
 
 template<class T> cstring cstring::make_unique(const T &inuse, cstring base, char sep) {
-    char suffix[8];
+    char suffix[12];
     cstring rv = base;
     int counter = 0;
     while (inuse.count(rv)) {
@@ -291,4 +309,4 @@ template<> struct hash<cstring> {
 };
 }  // namespace std
 
-#endif /* P4C_LIB_CSTRING_H_ */
+#endif /* _LIB_CSTRING_H_ */

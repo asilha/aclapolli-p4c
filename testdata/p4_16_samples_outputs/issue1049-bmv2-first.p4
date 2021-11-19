@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<48> EthernetAddress;
@@ -81,10 +82,11 @@ control cIngress(inout headers hdr, inout metadata meta, inout standard_metadata
             meta.mystruct1.hash_drop = false;
             guh.apply();
             debug_table.apply();
-            if (meta.mystruct1.hash_drop) 
+            if (meta.mystruct1.hash_drop) {
                 hdr.ethernet.dstAddr = meta.mystruct1.hash1 ++ 7w0 ++ (bit<1>)meta.mystruct1.hash_drop ++ 8w0 ++ 16w0xdead;
-            else 
+            } else {
                 hdr.ethernet.dstAddr = meta.mystruct1.hash1 ++ 7w0 ++ (bit<1>)meta.mystruct1.hash_drop ++ 8w0 ++ 16w0xc001;
+            }
         }
     }
 }

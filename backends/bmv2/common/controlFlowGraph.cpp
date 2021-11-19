@@ -89,9 +89,9 @@ bool CFG::dfs(Node* node, std::set<Node*> &visited,
     if (node->is<TableNode>()) {
         table = node->to<TableNode>()->table;
         if (stack.find(table) != stack.end()) {
-            ::error("Program cannot be implemented on this target since there it contains"
-                    "a path from table %1% back to itself",
-                    table);
+            ::error(ErrorType::ERR_INVALID,
+                    "Program can not be implemented on this target since it contains a path from "
+                    "table %1% back to itself", table);
             return false;
         }
     }
@@ -149,7 +149,7 @@ bool CFG::checkMergeable(std::set<TableNode*> nodes) const {
         }
         bool same = first->successors.checkSame(tn->successors);
         if (!same) {
-            ::error("Program is not supported by this target, because "
+            ::error(ErrorType::ERR_INVALID, "Program is not supported by this target, because "
                     "table %1% has multiple successors", tn->table);
             return false;
         }
@@ -209,7 +209,7 @@ class CFGBuilder : public Inspector {
             return false;
         auto am = instance->to<P4::ApplyMethod>();
         if (!am->object->is<IR::P4Table>()) {
-            ::error("%1%: apply method must be on a table", statement);
+            ::error(ErrorType::ERR_INVALID, "%1%: apply method must be on a table", statement);
             return false;
         }
         auto tc = am->object->to<IR::P4Table>();
@@ -223,6 +223,10 @@ class CFGBuilder : public Inspector {
         // If the expression is more complex it should have been
         // simplified by prior passes.
         auto tc = P4::TableApplySolver::isHit(statement->condition, refMap, typeMap);
+        bool condition = true;
+        if (auto *lnot = statement->condition->to<IR::LNot>()) {
+            if ((tc = P4::TableApplySolver::isHit(lnot->expr, refMap, typeMap))) {
+                condition = false; } }
         CFG::Node* node;
         if (tc != nullptr) {
             // hit-miss case.
@@ -233,7 +237,7 @@ class CFGBuilder : public Inspector {
 
         node->addPredecessors(live);
         // If branch
-        live = new CFG::EdgeSet(new CFG::Edge(node, true));
+        live = new CFG::EdgeSet(new CFG::Edge(node, condition));
         visit(statement->ifTrue);
         auto afterTrue = live;
         if (afterTrue == nullptr)
@@ -242,12 +246,12 @@ class CFGBuilder : public Inspector {
         auto result = new CFG::EdgeSet(afterTrue);
         // Else branch
         if (statement->ifFalse != nullptr) {
-            live = new CFG::EdgeSet(new CFG::Edge(node, false));
+            live = new CFG::EdgeSet(new CFG::Edge(node, !condition));
             visit(statement->ifFalse);
             result->mergeWith(live);
         } else {
             // no else branch
-            result->mergeWith(new CFG::EdgeSet(new CFG::Edge(node, false)));
+            result->mergeWith(new CFG::EdgeSet(new CFG::Edge(node, !condition)));
         }
         live = result;
         return false;

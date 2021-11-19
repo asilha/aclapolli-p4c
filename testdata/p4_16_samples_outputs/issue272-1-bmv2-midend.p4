@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef standard_metadata_t std_meta_t;
@@ -10,7 +11,7 @@ struct H {
 }
 
 struct M {
-    some_meta_t some_meta;
+    bool _some_meta_flag0;
 }
 
 control DeparserI(packet_out packet, in H hdr) {
@@ -35,17 +36,17 @@ control ComputeChecksumI(inout H hdr, inout M meta) {
 }
 
 control IngressI(inout H hdr, inout M meta, inout std_meta_t std_meta) {
-    @hidden action act() {
-        meta.some_meta.flag = true;
+    @hidden action issue2721bmv2l46() {
+        meta._some_meta_flag0 = true;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue2721bmv2l46 {
         actions = {
-            act();
+            issue2721bmv2l46();
         }
-        const default_action = act();
+        const default_action = issue2721bmv2l46();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue2721bmv2l46.apply();
     }
 }
 

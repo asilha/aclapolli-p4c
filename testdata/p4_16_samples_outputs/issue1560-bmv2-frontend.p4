@@ -4,6 +4,7 @@ error {
     IPv4ChecksumError
 }
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<32> IPv4Address;
@@ -65,11 +66,11 @@ struct metadata {
 }
 
 parser parserI(packet_in pkt, out headers hdr, inout metadata meta, inout standard_metadata_t stdmeta) {
-    IPv4_up_to_ihl_only_h tmp;
-    bit<9> tmp_0;
-    bit<9> tmp_1;
-    bit<9> tmp_2;
-    bit<32> tmp_3;
+    @name("parserI.tmp") IPv4_up_to_ihl_only_h tmp;
+    @name("parserI.tmp_0") bit<9> tmp_0;
+    @name("parserI.tmp_1") bit<9> tmp_1;
+    @name("parserI.tmp_2") bit<9> tmp_2;
+    @name("parserI.tmp_3") bit<32> tmp_3;
     state start {
         pkt.extract<ethernet_t>(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
@@ -98,29 +99,29 @@ parser parserI(packet_in pkt, out headers hdr, inout metadata meta, inout standa
 }
 
 control cIngress(inout headers hdr, inout metadata meta, inout standard_metadata_t stdmeta) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_4() {
+    @noWarn("unused") @name(".NoAction") action NoAction_4() {
     }
-    @name(".NoAction") action NoAction_5() {
+    @noWarn("unused") @name(".NoAction") action NoAction_5() {
     }
-    @name("cIngress.foo1") action foo1(IPv4Address dstAddr) {
-        hdr.ipv4.dstAddr = dstAddr;
+    @name("cIngress.foo1") action foo1(@name("dstAddr") IPv4Address dstAddr_1) {
+        hdr.ipv4.dstAddr = dstAddr_1;
     }
-    @name("cIngress.foo1") action foo1_3(IPv4Address dstAddr) {
-        hdr.ipv4.dstAddr = dstAddr;
+    @name("cIngress.foo1") action foo1_3(@name("dstAddr") IPv4Address dstAddr_2) {
+        hdr.ipv4.dstAddr = dstAddr_2;
     }
-    @name("cIngress.foo1") action foo1_4(IPv4Address dstAddr) {
-        hdr.ipv4.dstAddr = dstAddr;
+    @name("cIngress.foo1") action foo1_4(@name("dstAddr") IPv4Address dstAddr_3) {
+        hdr.ipv4.dstAddr = dstAddr_3;
     }
-    @name("cIngress.foo2") action foo2(IPv4Address srcAddr) {
-        hdr.ipv4.srcAddr = srcAddr;
+    @name("cIngress.foo2") action foo2(@name("srcAddr") IPv4Address srcAddr_1) {
+        hdr.ipv4.srcAddr = srcAddr_1;
     }
-    @name("cIngress.foo2") action foo2_3(IPv4Address srcAddr) {
-        hdr.ipv4.srcAddr = srcAddr;
+    @name("cIngress.foo2") action foo2_3(@name("srcAddr") IPv4Address srcAddr_2) {
+        hdr.ipv4.srcAddr = srcAddr_2;
     }
-    @name("cIngress.foo2") action foo2_4(IPv4Address srcAddr) {
-        hdr.ipv4.srcAddr = srcAddr;
+    @name("cIngress.foo2") action foo2_4(@name("srcAddr") IPv4Address srcAddr_3) {
+        hdr.ipv4.srcAddr = srcAddr_3;
     }
     @name("cIngress.t0") table t0_0 {
         key = {

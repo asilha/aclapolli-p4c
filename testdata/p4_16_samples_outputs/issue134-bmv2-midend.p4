@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header ipv4_t {
@@ -41,7 +42,7 @@ control VerifyChecksumI(inout H hdr, inout M meta) {
 }
 
 struct tuple_0 {
-    bit<1> field;
+    bit<1> f0;
 }
 
 control ComputeChecksumI(inout H hdr, inout M meta) {

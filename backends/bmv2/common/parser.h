@@ -30,12 +30,13 @@ class JsonObjects;
 
 class ParserConverter : public Inspector {
     ConversionContext*   ctxt;
+    cstring              name;
     P4::P4CoreLibrary&   corelib;
 
  protected:
-    void convertSimpleKey(const IR::Expression* keySet, mpz_class& value, mpz_class& mask) const;
+    void convertSimpleKey(const IR::Expression* keySet, big_int& value, big_int& mask) const;
     unsigned combine(const IR::Expression* keySet, const IR::ListExpression* select,
-                     mpz_class& value, mpz_class& mask, bool& is_vset, cstring& vset_name) const;
+                     big_int& value, big_int& mask, bool& is_vset, cstring& vset_name) const;
     Util::IJson* stateName(IR::ID state);
     Util::IJson* convertParserStatement(const IR::StatOrDecl* stat);
     Util::IJson* convertSelectKey(const IR::SelectExpression* expr);
@@ -43,11 +44,12 @@ class ParserConverter : public Inspector {
     Util::IJson* createDefaultTransition();
     cstring jsonAssignment(const IR::Type* type, bool inParser);
     std::vector<Util::IJson*> convertSelectExpression(const IR::SelectExpression* expr);
+    void addValueSets(const IR::P4Parser* parser);
 
  public:
     bool preorder(const IR::P4Parser* p) override;
-    explicit ParserConverter(ConversionContext* ctxt) :
-        ctxt(ctxt), corelib(P4::P4CoreLibrary::instance) {
+    explicit ParserConverter(ConversionContext* ctxt, cstring name = "parser")
+        : ctxt(ctxt), name(name), corelib(P4::P4CoreLibrary::instance) {
         setName("ParserConverter");
     }
 };

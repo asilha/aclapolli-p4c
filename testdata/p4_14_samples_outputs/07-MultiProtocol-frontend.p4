@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -101,9 +102,9 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
     @name(".parse_ipv4") state parse_ipv4 {
         packet.extract<ipv4_t>(hdr.ipv4);
         transition select(hdr.ipv4.fragOffset, hdr.ipv4.ihl, hdr.ipv4.protocol) {
-            (13w0x0 &&& 13w0x0, 4w0x5 &&& 4w0xf, 8w0x1 &&& 8w0xff): parse_icmp;
-            (13w0x0 &&& 13w0x0, 4w0x5 &&& 4w0xf, 8w0x6 &&& 8w0xff): parse_tcp;
-            (13w0x0 &&& 13w0x0, 4w0x5 &&& 4w0xf, 8w0x11 &&& 8w0xff): parse_udp;
+            (13w0x0 &&& 13w0x0, 4w0x5, 8w0x1): parse_icmp;
+            (13w0x0 &&& 13w0x0, 4w0x5, 8w0x6): parse_tcp;
+            (13w0x0 &&& 13w0x0, 4w0x5, 8w0x11): parse_udp;
             default: accept;
         }
     }
@@ -150,21 +151,21 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_9() {
+    @noWarn("unused") @name(".NoAction") action NoAction_9() {
     }
-    @name(".NoAction") action NoAction_10() {
+    @noWarn("unused") @name(".NoAction") action NoAction_10() {
     }
-    @name(".NoAction") action NoAction_11() {
+    @noWarn("unused") @name(".NoAction") action NoAction_11() {
     }
-    @name(".NoAction") action NoAction_12() {
+    @noWarn("unused") @name(".NoAction") action NoAction_12() {
     }
-    @name(".NoAction") action NoAction_13() {
+    @noWarn("unused") @name(".NoAction") action NoAction_13() {
     }
-    @name(".NoAction") action NoAction_14() {
+    @noWarn("unused") @name(".NoAction") action NoAction_14() {
     }
-    @name(".NoAction") action NoAction_15() {
+    @noWarn("unused") @name(".NoAction") action NoAction_15() {
     }
     @name(".l2_packet") action l2_packet() {
         meta.ing_metadata.packet_type = 4w0;
@@ -202,17 +203,17 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     @name("._drop") action _drop_4() {
         meta.ing_metadata.drop = 1w1;
     }
-    @name(".set_egress_port") action set_egress_port(bit<9> egress_port) {
-        meta.ing_metadata.egress_port = egress_port;
+    @name(".set_egress_port") action set_egress_port(@name("egress_port") bit<9> egress_port_1) {
+        meta.ing_metadata.egress_port = egress_port_1;
     }
-    @name(".set_egress_port") action set_egress_port_3(bit<9> egress_port) {
-        meta.ing_metadata.egress_port = egress_port;
+    @name(".set_egress_port") action set_egress_port_3(@name("egress_port") bit<9> egress_port_2) {
+        meta.ing_metadata.egress_port = egress_port_2;
     }
-    @name(".set_egress_port") action set_egress_port_4(bit<9> egress_port) {
-        meta.ing_metadata.egress_port = egress_port;
+    @name(".set_egress_port") action set_egress_port_4(@name("egress_port") bit<9> egress_port_3) {
+        meta.ing_metadata.egress_port = egress_port_3;
     }
     @name(".discard") action discard() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".send_packet") action send_packet() {
         standard_metadata.egress_spec = meta.ing_metadata.egress_port;
@@ -321,15 +322,13 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
                 l2_match_0.apply();
             }
         }
-
-        if (hdr.tcp.isValid()) 
+        if (hdr.tcp.isValid()) {
             tcp_check_0.apply();
-        else 
-            if (hdr.udp.isValid()) 
-                udp_check_0.apply();
-            else 
-                if (hdr.icmp.isValid()) 
-                    icmp_check_0.apply();
+        } else if (hdr.udp.isValid()) {
+            udp_check_0.apply();
+        } else if (hdr.icmp.isValid()) {
+            icmp_check_0.apply();
+        }
         set_egress_0.apply();
     }
 }

@@ -32,7 +32,8 @@ void DiscoverActionsInlining::postorder(const IR::MethodCallStatement* mcs) {
     auto caller = findContext<IR::P4Action>();
     if (caller == nullptr) {
         if (findContext<IR::P4Parser>() != nullptr) {
-            ::error("%1%: action invocation in parser not supported", mcs);
+            ::error(ErrorType::ERR_UNSUPPORTED,
+                    "%1%: action invocation in parser not allowed", mcs);
         } else if (findContext<IR::P4Control>() == nullptr) {
             BUG("%1%: unexpected action invocation", mcs);
         }
@@ -98,6 +99,11 @@ const IR::Node* ActionsInliner::preorder(IR::MethodCallStatement* statement) {
         } else if (param->direction == IR::Direction::None) {
             // This works because there can be no side-effects in the evaluation of this
             // argument.
+            if (!argument) {
+                ::error(ErrorType::ERR_UNINITIALIZED,
+                        "%1%: No argument supplied for %2%", statement, param);
+                continue;
+            }
             subst.add(param, argument);
         } else if (param->direction == IR::Direction::Out) {
             // uninitialized variable
@@ -130,7 +136,9 @@ const IR::Node* ActionsInliner::preorder(IR::MethodCallStatement* statement) {
     }
 
     auto annotations = callee->annotations->where(
-        [](const IR::Annotation* a) { return a->name != IR::Annotation::nameAnnotation; });
+        [&](const IR::Annotation* a) { return !(a->name == IR::Annotation::nameAnnotation ||
+                                                (a->name == IR::Annotation::noWarnAnnotation &&
+                                                 a->getSingleString() == "unused")); });
     auto result = new IR::BlockStatement(statement->srcInfo, annotations, body);
     LOG2("Replacing " << orig << " with " << result);
     return result;

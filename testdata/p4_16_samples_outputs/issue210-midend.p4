@@ -1,19 +1,18 @@
 #include <core.p4>
 
 control Ing(out bit<32> a) {
-    bool b_0;
+    @name("Ing.b") bool b_0;
     @name("Ing.cond") action cond() {
-        a = (b_0 ? 32w5 : a);
-        a = (!b_0 ? 32w10 : a);
+        a = (b_0 ? 32w5 : 32w10);
     }
-    @hidden action act() {
+    @hidden action issue210l30() {
         b_0 = true;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue210l30 {
         actions = {
-            act();
+            issue210l30();
         }
-        const default_action = act();
+        const default_action = issue210l30();
     }
     @hidden table tbl_cond {
         actions = {
@@ -22,7 +21,7 @@ control Ing(out bit<32> a) {
         const default_action = cond();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue210l30.apply();
         tbl_cond.apply();
     }
 }

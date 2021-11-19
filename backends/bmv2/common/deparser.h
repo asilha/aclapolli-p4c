@@ -28,17 +28,20 @@ namespace BMV2 {
 
 class DeparserConverter : public Inspector {
     ConversionContext*     ctxt;
+    cstring                name;
     P4::P4CoreLibrary&     corelib;
 
  protected:
     Util::IJson* convertDeparser(const IR::P4Control* ctrl);
-    void convertDeparserBody(const IR::Vector<IR::StatOrDecl>* body, Util::JsonArray* result);
+    void convertDeparserBody(const IR::Vector<IR::StatOrDecl>* body,
+                            Util::JsonArray* order, Util::JsonArray* primitives);
  public:
-    bool preorder(const IR::P4Control* ctrl);
+    bool preorder(const IR::P4Control* ctrl) override;
 
-    explicit DeparserConverter(ConversionContext* ctxt) :
-        ctxt(ctxt), corelib(P4::P4CoreLibrary::instance) {
-        setName("DeparserConverter"); }
+    explicit DeparserConverter(ConversionContext* ctxt, cstring name = "deparser")
+        : ctxt(ctxt), name(name), corelib(P4::P4CoreLibrary::instance) {
+        setName("DeparserConverter");
+    }
 };
 
 }  // namespace BMV2

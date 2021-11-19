@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -28,15 +29,15 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_1() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_11() {
+    @noWarn("unused") @name(".NoAction") action NoAction_11() {
     }
-    @name(".NoAction") action NoAction_12() {
+    @noWarn("unused") @name(".NoAction") action NoAction_12() {
     }
-    @name(".setf1") action setf1(bit<32> val) {
+    @name(".setf1") action setf1(@name("val") bit<32> val) {
         hdr.data.f1 = val;
     }
     @name(".noop") action noop() {
@@ -47,14 +48,14 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
     }
     @name(".noop") action noop_11() {
     }
-    @name(".setb4") action setb4(bit<32> val) {
-        hdr.data.b4 = val;
+    @name(".setb4") action setb4(@name("val") bit<32> val_7) {
+        hdr.data.b4 = val_7;
     }
-    @name(".setb1") action setb1(bit<32> val) {
-        hdr.data.b1 = val;
+    @name(".setb1") action setb1(@name("val") bit<32> val_8) {
+        hdr.data.b1 = val_8;
     }
-    @name(".setb1") action setb1_2(bit<32> val) {
-        hdr.data.b1 = val;
+    @name(".setb1") action setb1_2(@name("val") bit<32> val_9) {
+        hdr.data.b1 = val_9;
     }
     @name(".E1") table E1_0 {
         actions = {
@@ -102,30 +103,31 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
     }
     apply {
         E1_0.apply();
-        if (hdr.data.f1 == 32w0) 
+        if (hdr.data.f1 == 32w0) {
             EA_0.apply();
-        else 
+        } else {
             EB_0.apply();
+        }
         E2_0.apply();
     }
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_13() {
+    @noWarn("unused") @name(".NoAction") action NoAction_13() {
     }
-    @name(".NoAction") action NoAction_14() {
+    @noWarn("unused") @name(".NoAction") action NoAction_14() {
     }
-    @name(".NoAction") action NoAction_15() {
+    @noWarn("unused") @name(".NoAction") action NoAction_15() {
     }
-    @name(".NoAction") action NoAction_16() {
+    @noWarn("unused") @name(".NoAction") action NoAction_16() {
     }
-    @name(".NoAction") action NoAction_17() {
+    @noWarn("unused") @name(".NoAction") action NoAction_17() {
     }
-    @name(".setb1") action setb1_5(bit<32> val) {
-        hdr.data.b1 = val;
+    @name(".setb1") action setb1_5(@name("val") bit<32> val_10) {
+        hdr.data.b1 = val_10;
     }
-    @name(".setb1") action setb1_6(bit<32> val) {
-        hdr.data.b1 = val;
+    @name(".setb1") action setb1_6(@name("val") bit<32> val_11) {
+        hdr.data.b1 = val_11;
     }
     @name(".noop") action noop_12() {
     }
@@ -137,14 +139,14 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name(".noop") action noop_16() {
     }
-    @name(".setb3") action setb3(bit<32> val) {
-        hdr.data.b3 = val;
+    @name(".setb3") action setb3(@name("val") bit<32> val_12) {
+        hdr.data.b3 = val_12;
     }
-    @name(".setb2") action setb2(bit<32> val) {
-        hdr.data.b2 = val;
+    @name(".setb2") action setb2(@name("val") bit<32> val_13) {
+        hdr.data.b2 = val_13;
     }
-    @name(".setb4") action setb4_2(bit<32> val) {
-        hdr.data.b4 = val;
+    @name(".setb4") action setb4_2(@name("val") bit<32> val_14) {
+        hdr.data.b4 = val_14;
     }
     @name(".A1") table A1_0 {
         actions = {

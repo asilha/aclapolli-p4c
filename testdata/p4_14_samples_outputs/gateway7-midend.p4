@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -26,15 +27,15 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
     }
-    @name(".output") action output(bit<9> port) {
+    @name(".output") action output(@name("port") bit<9> port) {
         standard_metadata.egress_spec = port;
     }
-    @name(".output") action output_2(bit<9> port) {
-        standard_metadata.egress_spec = port;
+    @name(".output") action output_2(@name("port") bit<9> port_1) {
+        standard_metadata.egress_spec = port_1;
     }
     @name(".noop") action noop() {
     }
@@ -63,10 +64,11 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         default_action = NoAction_3();
     }
     apply {
-        if (hdr.data.b2 > 8w49) 
+        if (hdr.data.b2 > 8w49) {
             test1_0.apply();
-        else 
+        } else {
             test2_0.apply();
+        }
     }
 }
 

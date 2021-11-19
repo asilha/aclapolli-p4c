@@ -18,8 +18,8 @@ limitations under the License.
 
 /* Source-level information for a P4 program */
 
-#ifndef P4C_LIB_SOURCE_FILE_H_
-#define P4C_LIB_SOURCE_FILE_H_
+#ifndef _LIB_SOURCE_FILE_H_
+#define _LIB_SOURCE_FILE_H_
 
 #include <vector>
 
@@ -56,6 +56,7 @@ class SourcePosition final {
               columnNumber(0) {}
 
     SourcePosition(unsigned lineNumber, unsigned columnNumber);
+    SourcePosition& operator=(const SourcePosition&) = default;
 
     SourcePosition(const SourcePosition& other)
             : lineNumber(other.lineNumber),
@@ -63,7 +64,7 @@ class SourcePosition final {
 
     inline bool operator==(const SourcePosition& rhs) const {
         return columnNumber == rhs.columnNumber &&
-                lineNumber == rhs.columnNumber;
+                lineNumber == rhs.lineNumber;
     }
     inline bool operator!=(const SourcePosition& rhs) const
     {return !this->operator==(rhs);}
@@ -138,6 +139,16 @@ SourceInfo can also be "invalid"
 */
 class SourceInfo final {
  public:
+    cstring filename = "";
+    int line = -1;
+    int column = -1;
+    cstring srcBrief = "";
+    SourceInfo(cstring filename, int line, int column, cstring srcBrief) {
+        this->filename = filename;
+        this->line = line;
+        this->column = column;
+        this->srcBrief = srcBrief;
+    }
     /// Creates an "invalid" SourceInfo
     SourceInfo()
         : sources(nullptr), start(SourcePosition()), end(SourcePosition()) {}
@@ -220,9 +231,9 @@ class SourceInfo final {
     { return !this->operator< (rhs); }
 
  private:
-    const InputSources* sources;
-    SourcePosition start;
-    SourcePosition end;
+    const InputSources* sources = nullptr;
+    SourcePosition start = SourcePosition();
+    SourcePosition end = SourcePosition();
 };
 
 class IHasSourceInfo {
@@ -255,7 +266,7 @@ class Comment final : IHasDbPrint {
     Comment(SourceInfo srcInfo, bool singleLine, cstring body):
             srcInfo(srcInfo), singleLine(singleLine), body(body) {}
     cstring toString() const {
-        cstring result;
+        std::string result;
         if (singleLine)
             result = "//";
         else
@@ -329,7 +340,7 @@ class InputSources final {
     std::map<unsigned, SourceFileLine> line_file_map;
 
     /// Each line also stores the end-of-line character(s)
-    std::vector<cstring> contents;
+    std::vector<std::string> contents;
     /// The commends found in the file.
     std::vector<Comment*> comments;
 };
@@ -339,4 +350,4 @@ class InputSources final {
 inline void dbprint(const IHasDbPrint* o)
 { o->dbprint(std::cout); }
 
-#endif /* P4C_LIB_SOURCE_FILE_H_ */
+#endif /* _LIB_SOURCE_FILE_H_ */

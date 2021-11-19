@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header hdr {
@@ -42,8 +43,8 @@ control deparser(packet_out b, in Headers h) {
 }
 
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
-    @name("ingress.c.add") action c_add_0(bit<32> data) {
-        h.h.b = h.h.a + data;
+    @name("ingress.c.add") action c_add_0(@name("data") bit<32> data_1) {
+        h.h.b = h.h.a + data_1;
     }
     @name("ingress.c.t") table c_t {
         actions = {
@@ -51,18 +52,18 @@ control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
         }
         const default_action = c_add_0(32w10);
     }
-    @hidden action act() {
+    @hidden action arithinlineskeleton51() {
         sm.egress_spec = 9w0;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_arithinlineskeleton51 {
         actions = {
-            act();
+            arithinlineskeleton51();
         }
-        const default_action = act();
+        const default_action = arithinlineskeleton51();
     }
     apply {
         c_t.apply();
-        tbl_act.apply();
+        tbl_arithinlineskeleton51.apply();
     }
 }
 

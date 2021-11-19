@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -27,20 +28,19 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    bool tmp;
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_4() {
+    @noWarn("unused") @name(".NoAction") action NoAction_4() {
     }
-    @name(".NoAction") action NoAction_5() {
+    @noWarn("unused") @name(".NoAction") action NoAction_5() {
     }
-    @name(".setb1") action setb1(bit<8> val, bit<9> port) {
+    @name(".setb1") action setb1(@name("val") bit<8> val, @name("port") bit<9> port) {
         hdr.data.b1 = val;
         standard_metadata.egress_spec = port;
     }
-    @name(".setb1") action setb1_2(bit<8> val, bit<9> port) {
-        hdr.data.b1 = val;
-        standard_metadata.egress_spec = port;
+    @name(".setb1") action setb1_2(@name("val") bit<8> val_1, @name("port") bit<9> port_1) {
+        hdr.data.b1 = val_1;
+        standard_metadata.egress_spec = port_1;
     }
     @name(".noop") action noop() {
     }
@@ -77,31 +77,10 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         }
         default_action = NoAction_5();
     }
-    @hidden action act() {
-        tmp = true;
-    }
-    @hidden action act_0() {
-        tmp = false;
-    }
-    @hidden table tbl_act {
-        actions = {
-            act();
-        }
-        const default_action = act();
-    }
-    @hidden table tbl_act_0 {
-        actions = {
-            act_0();
-        }
-        const default_action = act_0();
-    }
     apply {
-        if (test1_0.apply().hit) 
-            tbl_act.apply();
-        else 
-            tbl_act_0.apply();
-        if (tmp) 
+        if (test1_0.apply().hit) {
             test2_0.apply();
+        }
         test4_0.apply();
     }
 }

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct H {
@@ -19,7 +20,7 @@ action empty() {
 control IngressI(inout H hdr, inout M meta, inout standard_metadata_t smeta) {
     action_profile(32w128) ap;
     action drop() {
-        mark_to_drop();
+        mark_to_drop(smeta);
     }
     table indirect {
         key = {

@@ -19,6 +19,7 @@ limitations under the License.
 
 #include "ir/ir.h"
 #include "typeSubstitution.h"
+#include "frontends/p4/typeMap.h"
 
 namespace P4 {
 
@@ -44,27 +45,37 @@ class TypeVariableSubstitutionVisitor : public Transform {
     bool  replace;  // If true variables that map to variables are just replaced
                     // in the TypeParameterList of the replaced object; else they
                     // are removed.
-    const IR::Node* replacement(IR::ITypeVar* typeVariable);
+    const IR::Node* replacement(const IR::ITypeVar* original, const IR::Node* node);
  public:
     explicit TypeVariableSubstitutionVisitor(const TypeVariableSubstitution *bindings,
                                              bool replace = false)
             : bindings(bindings), replace(replace) { setName("TypeVariableSubstitution"); }
 
     const IR::Node* preorder(IR::TypeParameters *tps) override;
-    const IR::Node* preorder(IR::Type_Var* typeVariable) override
-    { return replacement(typeVariable); }
-    const IR::Node* preorder(IR::Type_InfInt* typeVariable) override
-    { return replacement(typeVariable); }
+    const IR::Node* preorder(IR::Type_Var* tv) override
+    { return replacement(getOriginal<IR::Type_Var>(), tv); }
+    const IR::Node* preorder(IR::Type_InfInt* ti) override
+    { return replacement(getOriginal<IR::Type_InfInt>(), ti); }
 };
 
-/* Replaces TypeNames with other Types. */
-class TypeNameSubstitutionVisitor : public Transform {
- protected:
-    const TypeNameSubstitution* bindings;
+class TypeSubstitutionVisitor : public TypeVariableSubstitutionVisitor {
+    TypeMap* typeMap;
+
  public:
-    explicit TypeNameSubstitutionVisitor(const TypeNameSubstitution* bindings) :
-            bindings(bindings) { setName("TypeNameSubstitution"); }
-    const IR::Node* preorder(IR::Type_Name* typeName) override;
+    TypeSubstitutionVisitor(TypeMap* typeMap, TypeVariableSubstitution* ts) :
+            TypeVariableSubstitutionVisitor(ts), typeMap(typeMap) {
+        CHECK_NULL(typeMap); setName("TypeSubstitutionVisitor"); }
+    const IR::Node* postorder(IR::PathExpression* path) override {
+        // We want fresh nodes for variables, etc.
+        return new IR::PathExpression(path->path->clone()); }
+    const IR::Node* postorder(IR::Type_Name* type) override {
+        auto actual = typeMap->getTypeType(getOriginal<IR::Type_Name>(), true);
+        if (auto tv = actual->to<IR::ITypeVar>()) {
+            LOG3("Replacing " << tv);
+            return replacement(tv, type);
+        }
+        return type;
+    }
 };
 
 }  // namespace P4

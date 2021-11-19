@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct meta_t {
@@ -39,13 +40,13 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_5() {
+    @noWarn("unused") @name(".NoAction") action NoAction_5() {
     }
-    @name(".NoAction") action NoAction_6() {
+    @noWarn("unused") @name(".NoAction") action NoAction_6() {
     }
-    @name(".NoAction") action NoAction_7() {
+    @noWarn("unused") @name(".NoAction") action NoAction_7() {
     }
     @name(".do_nothing") action do_nothing() {
     }
@@ -55,17 +56,17 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name(".do_nothing") action do_nothing_6() {
     }
-    @name(".action_0") action action_0(bit<8> p) {
+    @name(".action_0") action action_0(@name("p") bit<8> p_3) {
         meta.meta.x = 16w1;
         meta.meta.y = 16w2;
     }
-    @name(".action_1") action action_1(bit<8> p) {
+    @name(".action_1") action action_1(@name("p") bit<8> p_4) {
         meta.meta.z = meta.meta.y + meta.meta.x;
     }
-    @name(".action_1") action action_2(bit<8> p) {
+    @name(".action_1") action action_2(@name("p") bit<8> p_5) {
         meta.meta.z = meta.meta.y + meta.meta.x;
     }
-    @name(".action_2") action action_7(bit<8> p) {
+    @name(".action_2") action action_7(@name("p") bit<8> p_6) {
         hdr.hdr0.a = meta.meta.z;
     }
     @name(".t0") table t0_0 {
@@ -118,14 +119,18 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         default_action = NoAction_7();
     }
     apply {
-        if (hdr.hdr0.isValid()) 
+        if (hdr.hdr0.isValid()) {
             t0_0.apply();
-        if (!hdr.hdr0.isValid()) 
+        }
+        if (!hdr.hdr0.isValid()) {
             t1_0.apply();
-        if (hdr.hdr0.isValid() || hdr.hdr0.isValid()) 
+        }
+        if (hdr.hdr0.isValid() || hdr.hdr0.isValid()) {
             t2_0.apply();
-        if (hdr.hdr0.isValid()) 
+        }
+        if (hdr.hdr0.isValid()) {
             t3_0.apply();
+        }
     }
 }
 

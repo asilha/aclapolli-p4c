@@ -26,6 +26,7 @@ limitations under the License.
 #include "frontends/p4/typeMap.h"
 #include "frontends/p4/typeChecking/bindVariables.h"
 #include "frontends/common/resolveReferences/resolveReferences.h"
+#include "frontends/p4/fromv1.0/v1model.h"
 // Passes
 #include "actionsInlining.h"
 #include "checkConstants.h"
@@ -45,6 +46,7 @@ limitations under the License.
 #include "moveDeclarations.h"
 #include "parseAnnotations.h"
 #include "parserControlFlow.h"
+#include "reassociation.h"
 #include "removeReturns.h"
 #include "resetHeaders.h"
 #include "setHeaders.h"
@@ -52,15 +54,20 @@ limitations under the License.
 #include "simplify.h"
 #include "simplifyDefUse.h"
 #include "simplifyParsers.h"
+#include "simplifySwitch.h"
 #include "specialize.h"
+#include "specializeGenericFunctions.h"
+#include "specializeGenericTypes.h"
 #include "strengthReduction.h"
 #include "structInitializers.h"
+#include "switchAddDefault.h"
 #include "tableKeyNames.h"
 #include "toP4/toP4.h"
 #include "typeChecking/typeChecker.h"
 #include "uniqueNames.h"
 #include "unusedDeclarations.h"
 #include "uselessCasts.h"
+#include "validateMatchAnnotations.h"
 #include "validateParsedProgram.h"
 
 namespace P4 {
@@ -113,8 +120,8 @@ class FrontEndDump : public PassManager {
 
 // TODO: remove skipSideEffectOrdering flag
 const IR::P4Program *FrontEnd::run(const CompilerOptions &options, const IR::P4Program* program,
-                                   bool skipSideEffectOrdering) {
-    if (program == nullptr)
+                                   bool skipSideEffectOrdering, std::ostream* outStream) {
+    if (program == nullptr && options.listFrontendPasses == 0)
         return nullptr;
 
     bool isv1 = options.isv1();
@@ -123,10 +130,10 @@ const IR::P4Program *FrontEnd::run(const CompilerOptions &options, const IR::P4P
     refMap.setIsV1(isv1);
 
     auto evaluator = new P4::EvaluatorPass(&refMap, &typeMap);
-
-    PassManager passes = {
+    PassManager passes({
+        new P4V1::getV1ModelVersion,
         // Parse annotations
-        &parseAnnotations,
+        new ParseAnnotationBodies(&parseAnnotations, &typeMap),
         new PrettyPrint(options),
         // Simple checks on parsed program
         new ValidateParsedProgram(),
@@ -139,31 +146,40 @@ const IR::P4Program *FrontEnd::run(const CompilerOptions &options, const IR::P4P
         // Desugars direct parser and control applications
         // into instantiations followed by application
         new InstantiateDirectCalls(&refMap),
-        // Type checking and type inference.  Also inserts
-        // explicit casts where implicit casts exist.
         new ResolveReferences(&refMap),  // check shadowing
         new Deprecated(&refMap),
         new CheckNamedArgs(),
+        // Type checking and type inference.  Also inserts
+        // explicit casts where implicit casts exist.
         new TypeInference(&refMap, &typeMap, false),  // insert casts
-        new DefaultArguments(&refMap, &typeMap),  // add default argument values to parameters
+        new ValidateMatchAnnotations(&typeMap),
         new BindTypeVariables(&refMap, &typeMap),
+        new SpecializeGenericTypes(&refMap, &typeMap),
+        new DefaultArguments(&refMap, &typeMap),  // add default argument values to parameters
+        new ResolveReferences(&refMap),
+        new TypeInference(&refMap, &typeMap, false),  // more casts may be needed
+        new RemoveParserIfs(&refMap, &typeMap),
         new StructInitializers(&refMap, &typeMap),
+        new SpecializeGenericFunctions(&refMap, &typeMap),
         new TableKeyNames(&refMap, &typeMap),
-        // Another round of constant folding, using type information.
-        new ConstantFolding(&refMap, &typeMap),
-        new StrengthReduction(),
-        new UselessCasts(&refMap, &typeMap),
+        PassRepeated({
+            new ConstantFolding(&refMap, &typeMap),
+            new StrengthReduction(&refMap, &typeMap),
+            new Reassociation(),
+            new UselessCasts(&refMap, &typeMap)
+        }),
         new SimplifyControlFlow(&refMap, &typeMap),
+        new SwitchAddDefault,
         new FrontEndDump(),  // used for testing the program at this point
         new RemoveAllUnusedDeclarations(&refMap, true),
         new SimplifyParsers(&refMap),
         new ResetHeaders(&refMap, &typeMap),
         new UniqueNames(&refMap),  // Give each local declaration a unique internal name
         new MoveDeclarations(),  // Move all local declarations to the beginning
-        new MoveInitializers(),
+        new MoveInitializers(&refMap),
         new SideEffectOrdering(&refMap, &typeMap, skipSideEffectOrdering),
-        new SetHeaders(&refMap, &typeMap),
         new SimplifyControlFlow(&refMap, &typeMap),
+        new SimplifySwitch(&refMap, &typeMap),
         new MoveDeclarations(),  // Move all local declarations to the beginning
         new SimplifyDefUse(&refMap, &typeMap),
         new UniqueParameters(&refMap, &typeMap),
@@ -179,10 +195,11 @@ const IR::P4Program *FrontEnd::run(const CompilerOptions &options, const IR::P4P
         new Inline(&refMap, &typeMap, evaluator),
         new InlineActions(&refMap, &typeMap),
         new InlineFunctions(&refMap, &typeMap),
+        new SetHeaders(&refMap, &typeMap),
         // Check for constants only after inlining
         new CheckConstants(&refMap, &typeMap),
         new SimplifyControlFlow(&refMap, &typeMap),
-        new RemoveParserControlFlow(&refMap, &typeMap),
+        new RemoveParserControlFlow(&refMap, &typeMap),  // more ifs may have been added to parsers
         new UniqueNames(&refMap),
         new LocalizeAllActions(&refMap),
         new UniqueNames(&refMap),  // needed again after inlining
@@ -190,11 +207,20 @@ const IR::P4Program *FrontEnd::run(const CompilerOptions &options, const IR::P4P
         new SimplifyControlFlow(&refMap, &typeMap),
         new HierarchicalNames(),
         new FrontEndLast(),
-    };
+    });
+    if (options.listFrontendPasses) {
+        passes.listPasses(*outStream, "\n");
+        *outStream << std::endl;
+        return nullptr;
+    }
+
+    if (options.excludeFrontendPasses) {
+       passes.removePasses(options.passesToExcludeFrontend);
+    }
 
     passes.setName("FrontEnd");
     passes.setStopOnError(true);
-    passes.addDebugHooks(hooks);
+    passes.addDebugHooks(hooks, true);
     const IR::P4Program* result = program->apply(passes);
     return result;
 }

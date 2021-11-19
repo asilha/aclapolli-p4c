@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -52,8 +53,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     apply {
         if (8w1 == 8w15 & hdr.data.b2) {
             test1.apply();
-        }
-        else {
+        } else {
             test2.apply();
         }
     }

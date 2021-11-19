@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -40,27 +41,27 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_6() {
+    @noWarn("unused") @name(".NoAction") action NoAction_6() {
     }
-    @name(".NoAction") action NoAction_7() {
+    @noWarn("unused") @name(".NoAction") action NoAction_7() {
     }
-    @name(".NoAction") action NoAction_8() {
+    @noWarn("unused") @name(".NoAction") action NoAction_8() {
     }
-    @name(".NoAction") action NoAction_9() {
+    @noWarn("unused") @name(".NoAction") action NoAction_9() {
     }
-    @name(".set0b1") action set0b1(bit<8> val) {
+    @name(".set0b1") action set0b1(@name("val") bit<8> val) {
         hdr.extra[0].b1 = val;
     }
-    @name(".act1") action act1(bit<8> val) {
-        hdr.extra[0].b1 = val;
+    @name(".act1") action act1(@name("val") bit<8> val_8) {
+        hdr.extra[0].b1 = val_8;
     }
-    @name(".act2") action act2(bit<8> val) {
-        hdr.extra[0].b1 = val;
+    @name(".act2") action act2(@name("val") bit<8> val_9) {
+        hdr.extra[0].b1 = val_9;
     }
-    @name(".act3") action act3(bit<8> val) {
-        hdr.extra[0].b1 = val;
+    @name(".act3") action act3(@name("val") bit<8> val_10) {
+        hdr.extra[0].b1 = val_10;
     }
     @name(".noop") action noop() {
     }
@@ -72,17 +73,17 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name(".noop") action noop_8() {
     }
-    @name(".setb2") action setb2(bit<8> val) {
-        hdr.data.b2 = val;
+    @name(".setb2") action setb2(@name("val") bit<8> val_11) {
+        hdr.data.b2 = val_11;
     }
-    @name(".set1b1") action set1b1(bit<8> val) {
-        hdr.extra[1].b1 = val;
+    @name(".set1b1") action set1b1(@name("val") bit<8> val_12) {
+        hdr.extra[1].b1 = val_12;
     }
-    @name(".set2b2") action set2b2(bit<8> val) {
-        hdr.extra[2].b2 = val;
+    @name(".set2b2") action set2b2(@name("val") bit<8> val_13) {
+        hdr.extra[2].b2 = val_13;
     }
-    @name(".setb1") action setb1(bit<9> port, bit<8> val) {
-        hdr.data.b1 = val;
+    @name(".setb1") action setb1(@name("port") bit<9> port, @name("val") bit<8> val_14) {
+        hdr.data.b1 = val_14;
         standard_metadata.egress_spec = port;
     }
     @name(".ex1") table ex1_0 {
@@ -155,8 +156,9 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
             act3: {
                 tbl3_0.apply();
             }
+            default: {
+            }
         }
-
     }
 }
 

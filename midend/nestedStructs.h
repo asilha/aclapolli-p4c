@@ -77,8 +77,9 @@ class ComplexValues final {
     /// Helper function that test if a struct is nested
     bool isNestedStruct(const IR::Type* type);
     /// Flatten a nested struct to only contain field declaration or non-nested struct
+    template <class T>
     void explode(cstring prefix, const IR::Type_Struct* type,
-                 FieldsMap* map, IR::Vector<IR::Declaration>* result);
+                 FieldsMap* map, IR::Vector<T>* result);
     Component* getTranslation(const IR::IDeclaration* decl) {
         auto dv = decl->to<IR::Declaration_Variable>();
         if (dv == nullptr)
@@ -113,7 +114,7 @@ class ComplexValues final {
  *  This does not work if the second argument of f is out or inout,
  *  since the list expression is not a l-value.  This pass cannot be
  *  used in this case.  This can arise only if there are extern functions
- *  that can return nested structs.
+ *  that can have out arguments with types that are structs.
  *
  *  @pre: This pass should be run after CopyStructures, EliminateTuples, and
  *        MoveInitializers.
@@ -133,13 +134,17 @@ class RemoveNestedStructs final : public Transform {
     const IR::Node* postorder(IR::Member* expression) override;
     /// replace reference to nested structs with the corresponding non-nested version
     const IR::Node* postorder(IR::PathExpression* expression) override;
+    const IR::Node* postorder(IR::MethodCallExpression* expression) override;
 };
 
 class NestedStructs final : public PassManager {
  public:
-    NestedStructs(ReferenceMap* refMap, TypeMap* typeMap) {
+    NestedStructs(ReferenceMap* refMap, TypeMap* typeMap,
+            TypeChecking* typeChecking = nullptr) {
         auto values = new ComplexValues(refMap, typeMap);
-        passes.push_back(new TypeChecking(refMap, typeMap));
+        if (!typeChecking)
+            typeChecking = new TypeChecking(refMap, typeMap);
+        passes.push_back(typeChecking);
         passes.push_back(new RemoveNestedStructs(values));
         passes.push_back(new ClearTypeMap(typeMap));
         setName("NestedStructs");

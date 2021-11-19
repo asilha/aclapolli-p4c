@@ -45,11 +45,11 @@ parser prs(packet_in p, out Headers_t headers) {
 }
 
 control pipe(inout Headers_t headers, out bool pass) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name("pipe.Reject") action Reject(IPv4Address add) {
+    @name("pipe.Reject") action Reject(@name("add") IPv4Address add_1) {
         pass = false;
-        headers.ipv4[0].srcAddr = add;
+        headers.ipv4[0].srcAddr = add_1;
     }
     @name("pipe.Check_src_ip") table Check_src_ip_0 {
         key = {
@@ -62,34 +62,33 @@ control pipe(inout Headers_t headers, out bool pass) {
         implementation = hash_table(32w1024);
         const default_action = NoAction_0();
     }
-    @hidden action act() {
+    @hidden action stack_ebpf73() {
         pass = false;
     }
-    @hidden action act_0() {
+    @hidden action stack_ebpf69() {
         pass = true;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_stack_ebpf69 {
         actions = {
-            act_0();
+            stack_ebpf69();
         }
-        const default_action = act_0();
+        const default_action = stack_ebpf69();
     }
-    @hidden table tbl_act_0 {
+    @hidden table tbl_stack_ebpf73 {
         actions = {
-            act();
+            stack_ebpf73();
         }
-        const default_action = act();
+        const default_action = stack_ebpf73();
     }
     apply {
-        tbl_act.apply();
+        tbl_stack_ebpf69.apply();
         switch (Check_src_ip_0.apply().action_run) {
             Reject: {
-                tbl_act_0.apply();
+                tbl_stack_ebpf73.apply();
             }
             NoAction_0: {
             }
         }
-
     }
 }
 

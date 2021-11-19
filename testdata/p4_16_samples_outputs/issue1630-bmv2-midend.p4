@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<9> egressSpec_t;
@@ -48,17 +49,17 @@ parser MyParser(packet_in packet, out headers hdr, inout metadata meta, inout st
 }
 
 struct tuple_0 {
-    bit<4>  field;
-    bit<4>  field_0;
-    bit<8>  field_1;
-    bit<16> field_2;
-    bit<16> field_3;
-    bit<3>  field_4;
-    bit<13> field_5;
-    bit<8>  field_6;
-    bit<8>  field_7;
-    bit<32> field_8;
-    bit<32> field_9;
+    bit<4>  f0;
+    bit<4>  f1;
+    bit<8>  f2;
+    bit<16> f3;
+    bit<16> f4;
+    bit<3>  f5;
+    bit<13> f6;
+    bit<8>  f7;
+    bit<8>  f8;
+    bit<32> f9;
+    bit<32> f10;
 }
 
 control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
@@ -68,14 +69,14 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 }
 
 control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name("MyIngress.drop") action drop_1() {
-        mark_to_drop();
+    @name("MyIngress.drop") action drop() {
+        mark_to_drop(standard_metadata);
     }
-    @name("MyIngress.ipv4_forward") action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
+    @name("MyIngress.ipv4_forward") action ipv4_forward(@name("dstAddr") macAddr_t dstAddr_1, @name("port") egressSpec_t port) {
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
-        hdr.ethernet.dstAddr = dstAddr;
+        hdr.ethernet.dstAddr = dstAddr_1;
         standard_metadata.egress_spec = port;
         hdr.ipv4.ttl = hdr.ipv4.ttl + 8w255;
         hdr.ipv4.hdrChecksum = 16w1;
@@ -86,15 +87,16 @@ control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadat
         }
         actions = {
             ipv4_forward();
-            drop_1();
+            drop();
             NoAction_0();
         }
         size = 1024;
         default_action = NoAction_0();
     }
     apply {
-        if (hdr.ipv4.isValid()) 
+        if (hdr.ipv4.isValid()) {
             ipv4_lpm_0.apply();
+        }
     }
 }
 

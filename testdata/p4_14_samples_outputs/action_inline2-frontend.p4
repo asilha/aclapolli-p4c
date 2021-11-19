@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -27,15 +28,15 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".setb1") action setb1(bit<9> port) {
+    @name(".setb1") action setb1(@name("port") bit<9> port) {
         {
-            bit<8> dest = hdr.data.b1;
+            @name("ingress.dest") bit<8> dest = hdr.data.b1;
             {
-                bit<8> dest_3 = dest;
+                @name("ingress.dest") bit<8> dest_3 = dest;
                 {
-                    bit<8> dest_4 = dest_3;
+                    @name("ingress.dest") bit<8> dest_4 = dest_3;
                     dest_4 = hdr.data.b2;
                     dest_3 = dest_4;
                 }

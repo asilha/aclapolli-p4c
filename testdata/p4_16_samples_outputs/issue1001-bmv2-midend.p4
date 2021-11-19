@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct Headers {
@@ -16,18 +17,18 @@ parser p(packet_in b, out Headers h, inout Meta m, inout standard_metadata_t sm)
 }
 
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
-    Meta x_0;
-    @hidden action act() {
+    @name("ingress.x") Meta x_0;
+    @hidden action issue1001bmv2l20() {
         clone3<Meta>(CloneType.I2E, 32w64, x_0);
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue1001bmv2l20 {
         actions = {
-            act();
+            issue1001bmv2l20();
         }
-        const default_action = act();
+        const default_action = issue1001bmv2l20();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue1001bmv2l20.apply();
     }
 }
 

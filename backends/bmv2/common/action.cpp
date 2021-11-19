@@ -47,6 +47,38 @@ void ActionConverter::convertActionBody(const IR::Vector<IR::StatOrDecl>* body,
         // TODO(jafingerhut) - add line/col at all individual cases below,
         // or perhaps it can be done as a common case above or below
         // for all of them?
+
+        IR::MethodCallExpression *mce2 = nullptr;
+        auto isR = false;
+        if (s->is<IR::AssignmentStatement>()) {
+            auto assign = s->to<IR::AssignmentStatement>();
+            const IR::Expression *l, *r;
+            l = assign->left;
+            r = assign->right;
+            auto mce = r->to<IR::MethodCallExpression>();
+            if (mce != nullptr) {
+                auto mi = P4::MethodInstance::resolve(mce, ctxt->refMap, ctxt->typeMap);
+                auto em = mi->to<P4::ExternMethod>();
+                if (em != nullptr) {
+                    if ((em->originalExternType->name.name == "Register" ||
+                                                em->method->name.name == "read") ||
+                        (em->originalExternType->name.name == "Meter" &&
+                                                em->method->name.name == "execute")) {
+                        isR = true;
+                        // l = l->to<IR::PathExpression>();
+                        // BUG_CHECK(l != nullptr, "register_read dest cast failed");
+                        auto dest = new IR::Argument(l);
+                        auto args = new IR::Vector<IR::Argument>();
+                        args->push_back(dest);  // dest
+                        args->push_back(mce->arguments->at(0));  // index
+                        mce2 = new IR::MethodCallExpression(mce->method, mce->typeArguments);
+                        mce2->arguments = args;
+                        s = new IR::MethodCallStatement(mce);
+                    }
+                }
+            }
+        }
+
         if (!s->is<IR::Statement>()) {
             continue;
         } else if (auto block = s->to<IR::BlockStatement>()) {
@@ -64,15 +96,19 @@ void ActionConverter::convertActionBody(const IR::Vector<IR::StatOrDecl>* body,
             auto assign = s->to<IR::AssignmentStatement>();
             l = assign->left;
             r = assign->right;
-
             auto type = ctxt->typeMap->getType(l, true);
             cstring operation = jsonAssignment(type, false);
             auto primitive = mkPrimitive(operation, result);
             auto parameters = mkParameters(primitive);
             primitive->emplace_non_null("source_info", assign->sourceInfoJsonObj());
-            auto left = ctxt->conv->convertLeftValue(l);
-            parameters->append(left);
             bool convertBool = type->is<IR::Type_Boolean>();
+            Util::IJson* left;
+            if (ctxt->conv->isArrayIndexRuntime(l)) {
+                left = ctxt->conv->convert(l, true, true, convertBool);
+            } else {
+                left = ctxt->conv->convertLeftValue(l);
+            }
+            parameters->append(left);
             auto right = ctxt->conv->convert(r, true, true, convertBool);
             parameters->append(right);
             continue;
@@ -117,7 +153,12 @@ void ActionConverter::convertActionBody(const IR::Vector<IR::StatOrDecl>* body,
             } else if (mi->is<P4::ExternMethod>()) {
                 auto em = mi->to<P4::ExternMethod>();
                 LOG3("P4V1:: convert " << s);
-                auto json = ExternConverter::cvtExternObject(ctxt, em, mc, s, emitExterns);
+                Util::IJson* json;
+                if (isR) {
+                    json = ExternConverter::cvtExternObject(ctxt, em, mce2, s, emitExterns);
+                } else {
+                    json = ExternConverter::cvtExternObject(ctxt, em, mc, s, emitExterns);
+                }
                 if (json)
                     result->append(json);
                 continue;
@@ -129,7 +170,8 @@ void ActionConverter::convertActionBody(const IR::Vector<IR::StatOrDecl>* body,
                 continue;
             }
         }
-        ::error("%1%: not yet supported on this target", s);
+        ::error(ErrorType::ERR_UNSUPPORTED,
+                "%1% not yet supported on this target", s);
     }
 }
 
@@ -138,13 +180,16 @@ ActionConverter::convertActionParams(const IR::ParameterList *parameters,
                                      Util::JsonArray* params) {
     for (auto p : *parameters->getEnumerator()) {
         if (!ctxt->refMap->isUsed(p))
-            ::warning("Unused action parameter %1%", p);
+            ::warning(ErrorType::WARN_UNUSED, "Unused action parameter %1%", p);
 
         auto param = new Util::JsonObject();
-        param->emplace("name", p->name);
+        param->emplace("name", p->externalName());
         auto type = ctxt->typeMap->getType(p, true);
-        if (!type->is<IR::Type_Bits>())
-            ::error("%1%: Action parameters can only be bit<> or int<> on this target", p);
+        // TODO: added IR::Type_Enum here to support PSA_MeterColor_t
+        // should re-consider how to support action parameters that is neither bit<> nor int<>
+        if (!(type->is<IR::Type_Bits>() || type->is<IR::Type_Enum>()))
+            ::error(ErrorType::ERR_INVALID,
+                    "%1%: action parameters must be bit<> or int<> on this target", p);
         param->emplace("bitwidth", type->width_bits());
         params->append(param);
     }
@@ -157,6 +202,7 @@ void ActionConverter::postorder(const IR::P4Action* action) {
     auto body = new Util::JsonArray();
     convertActionBody(&action->body->components, body);
     auto id = ctxt->json->add_action(name, params, body);
+    LOG3("add action with id " << id << " name " << name << " " << action);
     ctxt->structure->ids.emplace(action, id);
 }
 

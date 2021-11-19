@@ -28,10 +28,12 @@ This pass converts a P4-16 IR into a P4 source (text) program.
 It can optionally emit as comments a representation of the program IR.
 */
 class ToP4 : public Inspector {
-    int expressionPrecedence;  // precedence of current IR::Operation
-    bool isDeclaration;  // current type is a declaration
-    bool showIR;  // if true dump IR as comments
-    bool withinArgument;  // if true we are within a method call argument
+    int expressionPrecedence;  /// precedence of current IR::Operation
+    bool isDeclaration;  /// current type is a declaration
+    bool showIR;  /// if true dump IR as comments
+    bool withinArgument;  /// if true we are within a method call argument
+    bool noIncludes = false;  /// If true do not generate #include statements.
+                              /// Used for debugging.
 
     struct VecPrint {
         cstring separator;
@@ -108,6 +110,15 @@ class ToP4 : public Inspector {
             outStream(outStream),
             mainFile(mainFile)
     { visitDagOnce = false; setName("ToP4"); }
+    ToP4() :  // this is useful for debugging
+            expressionPrecedence(DBPrint::Prec_Low),
+            isDeclaration(true),
+            showIR(false),
+            withinArgument(false),
+            builder(* new Util::SourceCodeBuilder()),
+            outStream(&std::cout),
+            mainFile(nullptr)
+    { visitDagOnce = false; setName("ToP4"); }
 
     using Inspector::preorder;
 
@@ -123,6 +134,7 @@ class ToP4 : public Inspector {
     bool preorder(const IR::Type_Varbits* t) override;
     bool preorder(const IR::Type_Bits* t) override;
     bool preorder(const IR::Type_InfInt* t) override;
+    bool preorder(const IR::Type_String* t) override;
     bool preorder(const IR::Type_Var* t) override;
     bool preorder(const IR::Type_Dontcare* t) override;
     bool preorder(const IR::Type_Void* t) override;
@@ -145,7 +157,7 @@ class ToP4 : public Inspector {
     bool preorder(const IR::Type_Newtype* t) override;
     bool preorder(const IR::Type_Extern* t) override;
     bool preorder(const IR::Type_Unknown* t) override;
-    bool preorder(const IR::Type_Tuple* t) override;
+    bool preorder(const IR::Type_BaseList* t) override;
 
     // declarations
     bool preorder(const IR::Declaration_Constant* cst) override;
@@ -170,7 +182,7 @@ class ToP4 : public Inspector {
     bool preorder(const IR::SelectCase* e) override;
     bool preorder(const IR::SelectExpression* e) override;
     bool preorder(const IR::ListExpression* e) override;
-    bool preorder(const IR::StructInitializerExpression* e) override;
+    bool preorder(const IR::StructExpression* e) override;
     bool preorder(const IR::MethodCallExpression* e) override;
     bool preorder(const IR::DefaultExpression* e) override;
     bool preorder(const IR::This* e) override;
@@ -234,6 +246,9 @@ class ToP4 : public Inspector {
     // in case it is accidentally called on a V1Program
     bool preorder(const IR::V1Program*) override { return false; }
 };
+
+std::string toP4(const IR::INode* node);
+void dumpP4(const IR::INode* node);
 
 }  // namespace P4
 

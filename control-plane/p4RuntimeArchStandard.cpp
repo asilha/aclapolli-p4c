@@ -49,13 +49,25 @@ namespace Standard {
 /// "traits" for each extern type, templatized by the architecture name (using
 /// the Arch enum class defined below), as a convenient way to access
 /// architecture-specific names in the unified code.
-enum class Arch { V1MODEL, PSA };
+/// V1MODEL2020 is v1model with a version >= 20200408.
+enum class Arch { V1MODEL, PSA, V1MODEL2020 };
 
 /// Traits for the action profile extern, must be specialized for v1model and
 /// PSA.
 template <Arch arch> struct ActionProfileTraits;
 
 template<> struct ActionProfileTraits<Arch::V1MODEL> {
+    static const cstring name() { return "action profile"; }
+    static const cstring propertyName() {
+        return P4V1::V1Model::instance.tableAttributes.tableImplementation.name;
+    }
+    static const cstring typeName() {
+        return P4V1::V1Model::instance.action_profile.name;
+    }
+    static const cstring sizeParamName() { return "size"; }
+};
+
+template<> struct ActionProfileTraits<Arch::V1MODEL2020> {
     static const cstring name() { return "action profile"; }
     static const cstring propertyName() {
         return P4V1::V1Model::instance.tableAttributes.tableImplementation.name;
@@ -88,6 +100,14 @@ template<> struct ActionSelectorTraits<Arch::V1MODEL> : public ActionProfileTrai
     }
 };
 
+template<> struct ActionSelectorTraits<Arch::V1MODEL2020> :
+            public ActionProfileTraits<Arch::V1MODEL2020> {
+    static const cstring name() { return "action selector"; }
+    static const cstring typeName() {
+        return P4V1::V1Model::instance.action_selector.name;
+    }
+};
+
 template<> struct ActionSelectorTraits<Arch::PSA> : public ActionProfileTraits<Arch::PSA> {
     static const cstring name() { return "action selector"; }
     static const cstring typeName() {
@@ -107,6 +127,19 @@ template<> struct RegisterTraits<Arch::V1MODEL> {
     // the index of the type parameter for the data stored in the register, in
     // the type parameter list of the extern type declaration
     static size_t dataTypeParamIdx() { return 0; }
+    static boost::optional<size_t> indexTypeParamIdx() { return boost::none; }
+};
+
+template<> struct RegisterTraits<Arch::V1MODEL2020> {
+    static const cstring name() { return "register"; }
+    static const cstring typeName() {
+        return P4V1::V1Model::instance.registers.name;
+    }
+    static const cstring sizeParamName() { return "size"; }
+    // the index of the type parameter for the data stored in the register, in
+    // the type parameter list of the extern type declaration
+    static size_t dataTypeParamIdx() { return 0; }
+    static boost::optional<size_t> indexTypeParamIdx() { return 1; }
 };
 
 template<> struct RegisterTraits<Arch::PSA> {
@@ -116,6 +149,9 @@ template<> struct RegisterTraits<Arch::PSA> {
     }
     static const cstring sizeParamName() { return "size"; }
     static size_t dataTypeParamIdx() { return 0; }
+    // the index of the type parameter for the register index, in the type
+    // parameter list of the extern type declaration.
+    static boost::optional<size_t> indexTypeParamIdx() { return 1; }
 };
 
 template <Arch arch> struct CounterExtern { };
@@ -161,6 +197,31 @@ template<> struct CounterlikeTraits<Standard::CounterExtern<Standard::Arch::V1MO
         else if (name == "packets_and_bytes") return CounterSpec::BOTH;
         return CounterSpec::UNSPECIFIED;
     }
+    static boost::optional<size_t> indexTypeParamIdx() { return boost::none; }
+};
+
+template<> struct CounterlikeTraits<Standard::CounterExtern<Standard::Arch::V1MODEL2020> > {
+    static const cstring name() { return "counter"; }
+    static const cstring directPropertyName() {
+        return P4V1::V1Model::instance.tableAttributes.counters.name;
+    }
+    static const cstring typeName() {
+        return P4V1::V1Model::instance.counter.name;
+    }
+    static const cstring directTypeName() {
+        return P4V1::V1Model::instance.directCounter.name;
+    }
+    static const cstring sizeParamName() {
+        return "size";
+    }
+    static p4configv1::CounterSpec::Unit mapUnitName(const cstring name) {
+        using p4configv1::CounterSpec;
+        if (name == "packets") return CounterSpec::PACKETS;
+        else if (name == "bytes") return CounterSpec::BYTES;
+        else if (name == "packets_and_bytes") return CounterSpec::BOTH;
+        return CounterSpec::UNSPECIFIED;
+    }
+    static boost::optional<size_t> indexTypeParamIdx() { return 0; }
 };
 
 /// @ref CounterlikeTraits<> specialization for @ref CounterExtern for PSA
@@ -185,6 +246,9 @@ template<> struct CounterlikeTraits<Standard::CounterExtern<Standard::Arch::PSA>
         else if (name == "PACKETS_AND_BYTES") return CounterSpec::BOTH;
         return CounterSpec::UNSPECIFIED;
     }
+    // the index of the type parameter for the counter index, in the type
+    // parameter list of the extern type declaration.
+    static boost::optional<size_t> indexTypeParamIdx() { return 1; }
 };
 
 /// @ref CounterlikeTraits<> specialization for @ref MeterExtern for v1model
@@ -208,6 +272,30 @@ template<> struct CounterlikeTraits<Standard::MeterExtern<Standard::Arch::V1MODE
         else if (name == "bytes") return MeterSpec::BYTES;
         return MeterSpec::UNSPECIFIED;
     }
+    static boost::optional<size_t> indexTypeParamIdx() { return boost::none; }
+};
+
+template<> struct CounterlikeTraits<Standard::MeterExtern<Standard::Arch::V1MODEL2020> > {
+    static const cstring name() { return "meter"; }
+    static const cstring directPropertyName() {
+        return P4V1::V1Model::instance.tableAttributes.meters.name;
+    }
+    static const cstring typeName() {
+        return P4V1::V1Model::instance.meter.name;
+    }
+    static const cstring directTypeName() {
+        return P4V1::V1Model::instance.directMeter.name;
+    }
+    static const cstring sizeParamName() {
+        return "size";
+    }
+    static p4configv1::MeterSpec::Unit mapUnitName(const cstring name) {
+        using p4configv1::MeterSpec;
+        if (name == "packets") return MeterSpec::PACKETS;
+        else if (name == "bytes") return MeterSpec::BYTES;
+        return MeterSpec::UNSPECIFIED;
+    }
+    static boost::optional<size_t> indexTypeParamIdx() { return 0; }
 };
 
 /// @ref CounterlikeTraits<> specialization for @ref MeterExtern for PSA
@@ -231,6 +319,9 @@ template<> struct CounterlikeTraits<Standard::MeterExtern<Standard::Arch::PSA> >
         else if (name == "BYTES") return MeterSpec::BYTES;
         return MeterSpec::UNSPECIFIED;
     }
+    // the index of the type parameter for the meter index, in the type
+    // parameter list of the extern type declaration.
+    static boost::optional<size_t> indexTypeParamIdx() { return 0; }
 };
 
 }  // namespace Helpers
@@ -282,6 +373,9 @@ struct Register {
                                         // to this field.
     const int64_t size;
     const p4configv1::P4DataTypeSpec* typeSpec;  // The format of the stored data.
+    // If the type of the index is a user-defined type, this is the name of the type. Otherwise it
+    // is nullptr.
+    const cstring index_type_name;
 
     /// @return the information required to serialize an @instance of register
     /// or boost::none in case of error.
@@ -289,17 +383,20 @@ struct Register {
     static boost::optional<Register>
     from(const IR::ExternBlock* instance,
          const ReferenceMap* refMap,
+         const P4::TypeMap* typeMap,
          p4configv1::P4TypeInfo* p4RtTypeInfo) {
         CHECK_NULL(instance);
         auto declaration = instance->node->to<IR::Declaration_Instance>();
 
         auto size = instance->getParameterValue("size")->to<IR::Constant>();
         if (!size->is<IR::Constant>()) {
-            ::error("Register '%1%' has a non-constant size: %2%", declaration, size);
+            ::error(ErrorType::ERR_UNSUPPORTED,
+                    "Register '%1%' has a non-constant size: %2%", declaration, size);
             return boost::none;
         }
         if (!size->to<IR::Constant>()->fitsInt()) {
-            ::error("Register '%1%' has a size that doesn't fit in an integer: %2%",
+            ::error(ErrorType::ERR_UNSUPPORTED,
+                    "Register '%1%' has a size that doesn't fit in an integer: %2%",
                     declaration, size);
             return boost::none;
         }
@@ -312,13 +409,32 @@ struct Register {
         BUG_CHECK(type->arguments->size() > typeParamIdx,
                   "%1%: expected at least %2% type arguments", instance, typeParamIdx + 1);
         auto typeArg = type->arguments->at(typeParamIdx);
-        auto typeSpec = TypeSpecConverter::convert(refMap, typeArg, p4RtTypeInfo);
+        auto typeSpec = TypeSpecConverter::convert(refMap, typeMap, typeArg, p4RtTypeInfo);
         CHECK_NULL(typeSpec);
+
+        cstring index_type_name = nullptr;
+        auto indexTypeParamIdx = RegisterTraits<arch>::indexTypeParamIdx();
+        // In v1model, the index is a bit<32>, in PSA it is determined by a type parameter.
+        if (indexTypeParamIdx != boost::none) {
+            // retrieve type parameter for the index.
+            BUG_CHECK(declaration->type->is<IR::Type_Specialized>(),
+                      "%1%: expected Type_Specialized", declaration->type);
+            auto type = declaration->type->to<IR::Type_Specialized>();
+            BUG_CHECK(type->arguments->size() > *indexTypeParamIdx,
+                      "%1%: expected at least %2% type arguments",
+                      instance, *indexTypeParamIdx + 1);
+            auto typeArg = type->arguments->at(*indexTypeParamIdx);
+            // We ignore the return type on purpose, but the call is required to update p4RtTypeInfo
+            // if the index has a user-defined type.
+            TypeSpecConverter::convert(refMap, typeMap, typeArg, p4RtTypeInfo);
+            index_type_name = getTypeName(typeArg, typeMap);
+        }
 
         return Register{declaration->controlPlaneName(),
                         declaration->to<IR::IAnnotated>(),
-                        size->value.get_si(),
-                        typeSpec};
+                        int(size->value),
+                        typeSpec,
+                        index_type_name};
     }
 };
 
@@ -383,7 +499,8 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
             if (instance) {
                 if (instance->type->name != ActionProfileTraits<arch>::typeName() &&
                     instance->type->name != ActionSelectorTraits<arch>::typeName()) {
-                    ::error("Expected an action profile or action selector: %1%",
+                    ::error(ErrorType::ERR_EXPECTED,
+                            "Expected an action profile or action selector: %1%",
                             instance->expression);
                 } else if (isConstructedInPlace) {
                     symbols->add(SymbolType::ACTION_PROFILE(), *instance->name);
@@ -399,7 +516,8 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
                 &isConstructedInPlace);
             if (instance) {
                 if (instance->type->name != CounterTraits::directTypeName()) {
-                    ::error("Expected a direct counter: %1%", instance->expression);
+                    ::error(ErrorType::ERR_EXPECTED,
+                            "Expected a direct counter: %1%", instance->expression);
                 } else if (isConstructedInPlace) {
                     symbols->add(SymbolType::DIRECT_COUNTER(), *instance->name);
                 }
@@ -414,7 +532,8 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
                 &isConstructedInPlace);
             if (instance) {
                 if (instance->type->name != MeterTraits::directTypeName()) {
-                    ::error("Expected a direct meter: %1%", instance->expression);
+                    ::error(ErrorType::ERR_EXPECTED,
+                            "Expected a direct meter: %1%", instance->expression);
                 } else if (isConstructedInPlace) {
                     symbols->add(SymbolType::DIRECT_METER(), *instance->name);
                 }
@@ -522,13 +641,15 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
 
         auto p4RtTypeInfo = p4info->mutable_type_info();
         if (externBlock->type->name == CounterTraits::typeName()) {
-            auto counter = Helpers::Counterlike<ArchCounterExtern>::from(externBlock);
+            auto counter = Helpers::Counterlike<ArchCounterExtern>::from(
+                externBlock, refMap, typeMap, p4RtTypeInfo);
             if (counter) addCounter(symbols, p4info, *counter);
         } else if (externBlock->type->name == MeterTraits::typeName()) {
-            auto meter = Helpers::Counterlike<ArchMeterExtern>::from(externBlock);
+            auto meter = Helpers::Counterlike<ArchMeterExtern>::from(
+                externBlock, refMap, typeMap, p4RtTypeInfo);
             if (meter) addMeter(symbols, p4info, *meter);
         } else if (externBlock->type->name == RegisterTraits<arch>::typeName()) {
-            auto register_ = Register::from<arch>(externBlock, refMap, p4RtTypeInfo);
+            auto register_ = Register::from<arch>(externBlock, refMap, typeMap, p4RtTypeInfo);
             if (register_) addRegister(symbols, p4info, *register_);
         } else if (externBlock->type->name == ActionProfileTraits<arch>::typeName() ||
                    externBlock->type->name == ActionSelectorTraits<arch>::typeName()) {
@@ -581,7 +702,7 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
         auto size = instance->substitution.lookupByName(
             ActionProfileTraits<arch>::sizeParamName())->expression;
         if (!size->template is<IR::Constant>()) {
-            ::error("Action profile '%1%' has non-constant size '%2%'",
+            ::error(ErrorType::ERR_INVALID, "Action profile '%1%' has non-constant size '%2%'",
                     *instance->name, size);
             return boost::none;
         }
@@ -596,7 +717,8 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
         auto decl = instance->node->to<IR::IDeclaration>();
         auto size = instance->getParameterValue(ActionProfileTraits<arch>::sizeParamName());
         if (!size->template is<IR::Constant>()) {
-            ::error("Action profile '%1%' has non-constant size '%2%'",
+            ::error(ErrorType::ERR_INVALID,
+                    "Action profile '%1%' has non-constant size '%2%'",
                     decl->controlPlaneName(), size);
             return boost::none;
         }
@@ -613,10 +735,25 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
                                 actionProfile.name);
         setPreamble(profile->mutable_preamble(), id,
                     actionProfile.name, symbols.getAlias(actionProfile.name),
-                    actionProfile.annotations);
+                    actionProfile.annotations,
+                    // exclude @max_group_size if present
+                    [](cstring name) { return name == "max_group_size"; });
         profile->set_with_selector(
             actionProfile.type == ActionProfileType::INDIRECT_WITH_SELECTOR);
         profile->set_size(actionProfile.size);
+        auto maxGroupSizeAnnotation = actionProfile.annotations->getAnnotation("max_group_size");
+        if (maxGroupSizeAnnotation) {
+            if (actionProfile.type == ActionProfileType::INDIRECT_WITH_SELECTOR) {
+                auto maxGroupSizeConstant = maxGroupSizeAnnotation->expr[0]->to<IR::Constant>();
+                CHECK_NULL(maxGroupSizeConstant);
+                profile->set_max_group_size(maxGroupSizeConstant->asInt());
+            } else {
+                ::warning(ErrorType::WARN_IGNORE,
+                          "Ignoring annotation @max_group_size on action profile '%1%', "
+                          "which does not have a selector",
+                          actionProfile.annotations);
+            }
+        }
 
         auto tablesIt = actionProfilesRefs.find(actionProfile.name);
         if (tablesIt != actionProfilesRefs.end()) {
@@ -652,6 +789,9 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
                                     counterInstance.name);
             setCounterCommon(symbols, counter, id, counterInstance);
             counter->set_size(counterInstance.size);
+            if (counterInstance.index_type_name) {
+                counter->mutable_index_type_name()->set_name(counterInstance.index_type_name);
+            }
         }
     }
 
@@ -682,6 +822,9 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
                                     meterInstance.name);
             setMeterCommon(symbols, meter, id, meterInstance);
             meter->set_size(meterInstance.size);
+            if (meterInstance.index_type_name) {
+                meter->mutable_index_type_name()->set_name(meterInstance.index_type_name);
+            }
         }
     }
 
@@ -696,6 +839,9 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
                     registerInstance.annotations);
         register_->set_size(registerInstance.size);
         register_->mutable_type_spec()->CopyFrom(*registerInstance.typeSpec);
+        if (registerInstance.index_type_name) {
+            register_->mutable_index_type_name()->set_name(registerInstance.index_type_name);
+        }
     }
 
     void addDigest(const P4RuntimeSymbolTableIface& symbols,
@@ -744,7 +890,8 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
         const IR::Property* impl = getTableImplementationProperty(table);
         if (impl == nullptr) return boost::none;
         if (!impl->value->is<IR::ExpressionValue>()) {
-            ::error("Expected implementation property value for table %1% to be an expression: %2%",
+            ::error(ErrorType::ERR_EXPECTED,
+                    "Expected implementation property value for table %1% to be an expression: %2%",
                     table->controlPlaneName(), impl);
             return boost::none;
         }
@@ -768,7 +915,7 @@ class P4RuntimeArchHandlerCommon : public P4RuntimeArchHandlerIface {
 };
 
 /// Implements @ref P4RuntimeArchHandlerIface for the v1model architecture. The
-/// overridden metods will be called by the @P4RuntimeSerializer to collect and
+/// overridden methods will be called by the @P4RuntimeSerializer to collect and
 /// serialize v1model-specific symbols which are exposed to the control-plane.
 class P4RuntimeArchHandlerV1Model final : public P4RuntimeArchHandlerCommon<Arch::V1MODEL> {
  public:
@@ -779,7 +926,7 @@ class P4RuntimeArchHandlerV1Model final : public P4RuntimeArchHandlerCommon<Arch
 
     void collectExternFunction(P4RuntimeSymbolTableIface* symbols,
                                const P4::ExternFunction* externFunction) override {
-        auto digest = getDigestCall(externFunction, refMap, nullptr);
+        auto digest = getDigestCall(externFunction, refMap, typeMap, nullptr);
         if (digest) symbols->add(SymbolType::DIGEST(), digest->name);
     }
 
@@ -803,7 +950,7 @@ class P4RuntimeArchHandlerV1Model final : public P4RuntimeArchHandlerCommon<Arch
                            p4configv1::P4Info* p4info,
                            const P4::ExternFunction* externFunction) override {
         auto p4RtTypeInfo = p4info->mutable_type_info();
-        auto digest = getDigestCall(externFunction, refMap, p4RtTypeInfo);
+        auto digest = getDigestCall(externFunction, refMap, typeMap, p4RtTypeInfo);
         if (digest) addDigest(symbols, p4info, *digest);
     }
 
@@ -812,6 +959,7 @@ class P4RuntimeArchHandlerV1Model final : public P4RuntimeArchHandlerCommon<Arch
     static boost::optional<Digest>
     getDigestCall(const P4::ExternFunction* function,
                   ReferenceMap* refMap,
+                  const P4::TypeMap* typeMap,
                   p4configv1::P4TypeInfo* p4RtTypeInfo) {
         if (function->method->name != P4V1::V1Model::instance.digest_receiver.name)
             return boost::none;
@@ -841,7 +989,8 @@ class P4RuntimeArchHandlerV1Model final : public P4RuntimeArchHandlerCommon<Arch
             auto it = autoNames.find(call);
             if (it == autoNames.end()) {
               controlPlaneName = "digest_" + cstring::to_cstring(autoNames.size());
-              ::warning("Cannot find a good name for %1% method call, using "
+              ::warning(ErrorType::WARN_MISMATCH,
+                        "Cannot find a good name for %1% method call, using "
                         "auto-generated name '%2%'", call, controlPlaneName);
               autoNames.emplace(call, controlPlaneName);
             } else {
@@ -850,8 +999,9 @@ class P4RuntimeArchHandlerV1Model final : public P4RuntimeArchHandlerCommon<Arch
         }
 
         // Convert the generic type for the digest method call to a P4DataTypeSpec
-        auto* typeSpec = TypeSpecConverter::convert(refMap, typeArg, p4RtTypeInfo);
-        BUG_CHECK(typeSpec != nullptr, "P4 type %1% could not be converted to P4Info P4DataTypeSpec");
+        auto* typeSpec = TypeSpecConverter::convert(refMap, typeMap, typeArg, p4RtTypeInfo);
+        BUG_CHECK(typeSpec != nullptr, "P4 type %1% could not "
+                  "be converted to P4Info P4DataTypeSpec");
         return Digest{controlPlaneName, typeSpec, nullptr};
     }
 
@@ -863,14 +1013,16 @@ class P4RuntimeArchHandlerV1Model final : public P4RuntimeArchHandlerCommon<Arch
                                                       .supportTimeout.name);
         if (timeout == nullptr) return false;
         if (!timeout->value->is<IR::ExpressionValue>()) {
-            ::error("Unexpected value %1% for supports_timeout on table %2%",
+            ::error(ErrorType::ERR_UNEXPECTED,
+                    "Unexpected value %1% for supports_timeout on table %2%",
                     timeout, table);
             return false;
         }
 
         auto expr = timeout->value->to<IR::ExpressionValue>()->expression;
         if (!expr->is<IR::BoolLiteral>()) {
-            ::error("Unexpected non-boolean value %1% for supports_timeout "
+            ::error(ErrorType::ERR_UNEXPECTED,
+                    "Unexpected non-boolean value %1% for supports_timeout "
                     "property on table %2%", timeout, table);
             return false;
         }
@@ -886,7 +1038,7 @@ V1ModelArchHandlerBuilder::operator()(
 }
 
 /// Implements @ref P4RuntimeArchHandlerIface for the PSA architecture. The
-/// overridden metods will be called by the @P4RuntimeSerializer to collect and
+/// overridden methods will be called by the @P4RuntimeSerializer to collect and
 /// serialize PSA-specific symbols which are exposed to the control-plane.
 class P4RuntimeArchHandlerPSA final : public P4RuntimeArchHandlerCommon<Arch::PSA> {
  public:
@@ -912,8 +1064,14 @@ class P4RuntimeArchHandlerPSA final : public P4RuntimeArchHandlerCommon<Arch::PS
                             const IR::TableBlock* tableBlock) override {
         P4RuntimeArchHandlerCommon<Arch::PSA>::addTableProperties(
             symbols, p4info, table, tableBlock);
-        // TODO(antonin): not supported yet in PSA
-        table->set_idle_timeout_behavior(p4configv1::Table::NOTIFY_CONTROL);
+
+        auto tableDeclaration = tableBlock->container;
+        bool supportsTimeout = getSupportsTimeout(tableDeclaration);
+        if (supportsTimeout) {
+            table->set_idle_timeout_behavior(p4configv1::Table::NOTIFY_CONTROL);
+        } else {
+            table->set_idle_timeout_behavior(p4configv1::Table::NO_TIMEOUT);
+        }
     }
 
     void addExternInstance(const P4RuntimeSymbolTableIface& symbols,
@@ -939,11 +1097,43 @@ class P4RuntimeArchHandlerPSA final : public P4RuntimeArchHandlerCommon<Arch::PS
         auto type = decl->type->to<IR::Type_Specialized>();
         BUG_CHECK(type->arguments->size() == 1, "%1%: expected one type argument", decl);
         auto typeArg = type->arguments->at(0);
-        auto typeSpec = TypeSpecConverter::convert(refMap, typeArg, p4RtTypeInfo);
+        auto typeSpec = TypeSpecConverter::convert(refMap, typeMap, typeArg, p4RtTypeInfo);
         BUG_CHECK(typeSpec != nullptr,
                   "P4 type %1% could not be converted to P4Info P4DataTypeSpec");
 
         return Digest{decl->controlPlaneName(), typeSpec, decl->to<IR::IAnnotated>()};
+    }
+
+    /// @return true if @table's 'psa_idle_timeout' property exists and is true. This
+    /// indicates that @table supports entry ageing.
+    static bool getSupportsTimeout(const IR::P4Table* table) {
+        auto timeout = table->properties->getProperty("psa_idle_timeout");
+
+        if (timeout == nullptr) return false;
+
+        if (auto exprValue = timeout->value->to<IR::ExpressionValue>()) {
+            if (auto expr = exprValue->expression) {
+                if (auto member = expr->to<IR::Member>()) {
+                    if (member->member == "NOTIFY_CONTROL") {
+                        return true;
+                    } else if (member->member == "NO_TIMEOUT") {
+                        return false;
+                    }
+                } else if (expr->is<IR::PathExpression>()) {
+                    ::error(ErrorType::ERR_UNEXPECTED,
+                        "Unresolved value %1% for psa_idle_timeout "
+                        "property on table %2%. Must be a constant and one of "
+                        "{ NOTIFY_CONTROL, NO_TIMEOUT }", timeout, table);
+                    return false;
+                }
+            }
+        }
+
+        ::error(ErrorType::ERR_UNEXPECTED,
+                "Unexpected value %1% for psa_idle_timeout "
+                "property on table %2%. Supported values are "
+                "{ NOTIFY_CONTROL, NO_TIMEOUT }", timeout, table);
+        return false;
     }
 };
 
@@ -951,6 +1141,24 @@ P4RuntimeArchHandlerIface*
 PSAArchHandlerBuilder::operator()(
     ReferenceMap* refMap, TypeMap* typeMap, const IR::ToplevelBlock* evaluatedProgram) const {
     return new P4RuntimeArchHandlerPSA(refMap, typeMap, evaluatedProgram);
+}
+
+/// Implements @ref P4RuntimeArchHandlerIface for the UBPF architecture.
+/// We re-use PSA to handle externs.
+/// Rationale: The only configurable extern object in ubpf_model.p4 is Register.
+/// The Register is defined exactly the same as for PSA. Therefore, we can re-use PSA.
+class P4RuntimeArchHandlerUBPF final : public P4RuntimeArchHandlerCommon<Arch::PSA> {
+ public:
+    P4RuntimeArchHandlerUBPF(ReferenceMap* refMap,
+                             TypeMap* typeMap,
+                             const IR::ToplevelBlock* evaluatedProgram)
+            : P4RuntimeArchHandlerCommon<Arch::PSA>(refMap, typeMap, evaluatedProgram) { }
+};
+
+P4RuntimeArchHandlerIface*
+UBPFArchHandlerBuilder::operator()(
+        ReferenceMap* refMap, TypeMap* typeMap, const IR::ToplevelBlock* evaluatedProgram) const {
+    return new P4RuntimeArchHandlerUBPF(refMap, typeMap, evaluatedProgram);
 }
 
 }  // namespace Standard

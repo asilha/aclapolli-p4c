@@ -74,11 +74,11 @@ struct StructTypeReplacement : public IHasDbPrint {
                  const IR::Type* type,
                  IR::IndexedVector<IR::StructField> *fields);
 
-    /// Returns a StructInitializerExpression suitable for
+    /// Returns a StructExpression suitable for
     /// initializing a struct for the fields that start with the
     /// given prefix.  For example, for prefix .t and root R this returns
     /// { .s = { .a = R._t_s_a0, .b = R._t_s_b1 }, .y = R._t_y2 }
-    const IR::StructInitializerExpression* explode(
+    const IR::StructExpression* explode(
         const IR::Expression* root, cstring prefix);
 };
 
@@ -121,6 +121,10 @@ parsers, and packages.  It does not transform methods, functions or
 actions.  It starts from package instantiations: every type argument
 that is a nested structure is replaced with "simpler" flat type.
 
+This pass cannot handle methods or functions that return structs, or
+that take an out argument of type struct.  If there are such
+structures the pass will report an error.
+
 Should be run after the NestedStructs pass.
 
 struct S { bit b; }
@@ -153,7 +157,7 @@ control c(inout T arg) {
 top<TFlat>(c()) main;
 
  */
-class ReplaceStructs : public Transform {
+class ReplaceStructs : public Transform, P4WriteContext {
     NestedStructMap* replacementMap;
     std::map<const IR::Parameter*, StructTypeReplacement*> toReplace;
 

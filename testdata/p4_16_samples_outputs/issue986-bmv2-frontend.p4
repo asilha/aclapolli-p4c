@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct Meta {
@@ -35,7 +36,7 @@ control deparser(packet_out b, in Headers h) {
 }
 
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
     @name("ingress.t1") table t1_0 {
         actions = {
@@ -47,8 +48,7 @@ control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
         if (m.b == 1w0) {
             t1_0.apply();
             sm.egress_spec = 9w1;
-        }
-        else {
+        } else {
             t1_0.apply();
             sm.egress_spec = 9w2;
         }

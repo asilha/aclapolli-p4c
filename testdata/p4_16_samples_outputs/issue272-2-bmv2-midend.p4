@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef standard_metadata_t std_meta_t;
@@ -31,17 +32,17 @@ control ComputeChecksumI(inout H hdr, inout M meta) {
 }
 
 control IngressI(inout H hdr, inout M meta, inout std_meta_t std_meta) {
-    @hidden action act() {
+    @hidden action issue2722bmv2l44() {
         meta.flag = true;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue2722bmv2l44 {
         actions = {
-            act();
+            issue2722bmv2l44();
         }
-        const default_action = act();
+        const default_action = issue2722bmv2l44();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue2722bmv2l44.apply();
     }
 }
 

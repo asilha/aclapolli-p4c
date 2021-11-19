@@ -27,6 +27,10 @@ Visitor::profile_t RemoveUnusedDeclarations::init_apply(const IR::Node* node) {
 bool RemoveUnusedDeclarations::giveWarning(const IR::Node* node) {
     if (warned == nullptr)
         return false;
+    if (auto anno = node->to<IR::IAnnotated>())
+        if (auto warn = anno->getAnnotation(IR::Annotation::noWarnAnnotation))
+            if (warn->getSingleString() == "unused")
+                return false;
     auto p = warned->emplace(node);
     LOG3("Warn about " << dbp(node) << " " << p.second);
     return p.second;
@@ -79,7 +83,7 @@ const IR::Node* RemoveUnusedDeclarations::preorder(IR::P4Parser* cont) {
 const IR::Node* RemoveUnusedDeclarations::preorder(IR::P4Table* table) {
     if (!refMap->isUsed(getOriginal<IR::IDeclaration>())) {
         if (giveWarning(getOriginal()))
-            ::warning("Table %1% is not used; removing", table);
+            ::warning(ErrorType::WARN_UNUSED, "Table %1% is not used; removing", table);
         LOG3("Removing " << table);
         table = nullptr;
     }
@@ -100,6 +104,9 @@ const IR::Node* RemoveUnusedDeclarations::process(const IR::IDeclaration* decl) 
     LOG3("Visiting " << decl);
     if (decl->getName().name == IR::ParserState::verify && getParent<IR::P4Program>())
         return decl->getNode();
+    if (decl->getName().name.startsWith("__"))
+        // Internal identifiers, e.g., __v1model_version
+        return decl->getNode();
     if (refMap->isUsed(getOriginal<IR::IDeclaration>()))
         return decl->getNode();
     LOG3("Removing " << getOriginal());
@@ -113,7 +120,7 @@ const IR::Node* RemoveUnusedDeclarations::preorder(IR::Declaration_Instance* dec
         return decl;
     if (!refMap->isUsed(getOriginal<IR::Declaration_Instance>())) {
         if (giveWarning(getOriginal()))
-            ::warning("%1%: unused instance", decl);
+            ::warning(ErrorType::WARN_UNUSED, "%1%: unused instance", decl);
         // We won't delete extern instances; these may be useful even if not references.
         auto type = decl->type;
         if (type->is<IR::Type_Specialized>())

@@ -44,12 +44,75 @@ namespace BMV2 {
 class PsaSwitchExpressionConverter : public ExpressionConverter {
  public:
     PsaSwitchExpressionConverter(P4::ReferenceMap* refMap, P4::TypeMap* typeMap,
-                                      ProgramStructure* structure, cstring scalarsName) :
+                                 ProgramStructure* structure, cstring scalarsName) :
     BMV2::ExpressionConverter(refMap, typeMap, structure, scalarsName) { }
 
+    void modelError(const char* format, const cstring field) {
+        ::error(ErrorType::ERR_MODEL,
+                (cstring(format) +
+                 "\nInvalid metadata parameter value for PSA").c_str(), field);
+    }
+
+    /**
+     * Checks if a string is of type PSA_CounterType_t returns true
+     * if it is, false otherwise.
+     */
+    static bool isCounterMetadata(cstring ptName) {
+      return !strcmp(ptName, "PSA_CounterType_t");
+    }
+
+    /**
+     * Checks if a string is a psa metadata returns true
+     * if it is, false otherwise.
+     */
+    static bool isStandardMetadata(cstring ptName) {
+      return (!strcmp(ptName, "psa_ingress_parser_input_metadata_t") ||
+        !strcmp(ptName, "psa_egress_parser_input_metadata_t") ||
+        !strcmp(ptName, "psa_ingress_input_metadata_t") ||
+        !strcmp(ptName, "psa_ingress_output_metadata_t") ||
+        !strcmp(ptName, "psa_egress_input_metadata_t") ||
+        !strcmp(ptName, "psa_egress_deparser_input_metadata_t") ||
+        !strcmp(ptName, "psa_egress_output_metadata_t"));
+    }
+
+
     Util::IJson* convertParam(UNUSED const IR::Parameter* param, cstring fieldName) override {
-        LOG3("convert " << fieldName);
+      cstring ptName = param->type->toString();
+      if (isCounterMetadata(ptName)) {  // check if its counter metadata
+          auto jsn = new Util::JsonObject();
+          jsn->emplace("name", param->toString());
+          jsn->emplace("type", "hexstr");
+          auto bitwidth = param->type->width_bits();
+
+          // encode the counter type from enum -> int
+          if (fieldName == "BYTES") {
+              cstring repr = BMV2::stringRepr(0, ROUNDUP(bitwidth, 32));
+              jsn->emplace("value", repr);
+          } else if (fieldName == "PACKETS") {
+              cstring repr = BMV2::stringRepr(1, ROUNDUP(bitwidth, 32));
+              jsn->emplace("value", repr);
+          } else if (fieldName == "PACKETS_AND_BYTES") {
+              cstring repr = BMV2::stringRepr(2, ROUNDUP(bitwidth, 32));
+              jsn->emplace("value", repr);
+          } else {
+              modelError("%1%: Exptected a PSA_CounterType_t", fieldName);
+              return nullptr;
+          }
+          return jsn;
+      } else if (isStandardMetadata(ptName)) {  // check if its psa metadata
+          auto jsn = new Util::JsonObject();
+
+          // encode the metadata type and field in json
+          jsn->emplace("type", "field");
+          auto a = mkArrayField(jsn, "value");
+          a->append(ptName.exceptLast(2));
+          a->append(fieldName);
+          return jsn;
+      } else {
+        // not a special type
         return nullptr;
+      }
+      return nullptr;
     }
 };
 
@@ -59,9 +122,8 @@ class PsaProgramStructure : public ProgramStructure {
 
  public:
     // We place scalar user metadata fields (i.e., bit<>, bool)
-    // in the scalarsName metadata object, so we may need to rename
-    // these fields.  This map holds the new names.
-    std::vector<const IR::StructField*> scalars;
+    // in the scalars map.
+    ordered_map<cstring, const IR::Declaration_Variable*> scalars;
     unsigned                            scalars_width = 0;
     unsigned                            error_width = 32;
     unsigned                            bool_width = 1;
@@ -98,12 +160,16 @@ class PsaProgramStructure : public ProgramStructure {
     void createStructLike(ConversionContext* ctxt, const IR::Type_StructLike* st);
     void createTypes(ConversionContext* ctxt);
     void createHeaders(ConversionContext* ctxt);
+    void createScalars(ConversionContext* ctxt);
     void createParsers(ConversionContext* ctxt);
     void createExterns();
     void createActions(ConversionContext* ctxt);
     void createControls(ConversionContext* ctxt);
     void createDeparsers(ConversionContext* ctxt);
     void createGlobals();
+
+    std::set<cstring> non_pipeline_controls;
+    std::set<cstring> pipeline_controls;
 
     bool hasVisited(const IR::Type_StructLike* st) {
         if (auto h = st->to<IR::Type_Header>())
@@ -121,6 +187,12 @@ class ParsePsaArchitecture : public Inspector {
  public:
     explicit ParsePsaArchitecture(PsaProgramStructure* structure) :
         structure(structure) { CHECK_NULL(structure); }
+
+    void modelError(const char* format, const IR::INode* node) {
+        ::error(ErrorType::ERR_MODEL,
+                (cstring(format) + "Are you using an up-to-date 'psa.p4'?").c_str(),
+                node->getNode());
+    }
 
     bool preorder(const IR::ToplevelBlock* block) override;
     bool preorder(const IR::PackageBlock* block) override;
@@ -155,6 +227,7 @@ class InspectPsaProgram : public Inspector {
     void addTypesAndInstances(const IR::Type_StructLike* type, bool meta);
     void addHeaderType(const IR::Type_StructLike *st);
     void addHeaderInstance(const IR::Type_StructLike *st, cstring name);
+    bool preorder(const IR::Declaration_Variable* dv) override;
     bool preorder(const IR::Parameter* parameter) override;
 };
 
@@ -178,7 +251,7 @@ class ConvertPsaToJson : public Inspector {
         CHECK_NULL(structure); }
 
     void postorder(UNUSED const IR::P4Program* program) override {
-        cstring scalarsName = refMap->newName("scalars");
+        cstring scalarsName = "scalars";
         // This visitor is used in multiple passes to convert expression to json
         auto conv = new PsaSwitchExpressionConverter(refMap, typeMap, structure, scalarsName);
         auto ctxt = new ConversionContext(refMap, typeMap, toplevel, structure, conv, json);

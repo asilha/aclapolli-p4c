@@ -1,6 +1,5 @@
 /*
 Copyright 2016 VMware, Inc.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -136,11 +135,7 @@ class ExpressionEvaluator : public Inspector {
 
     SymbolicValue* set(const IR::Expression* expression, SymbolicValue* v)
     { value.emplace(expression, v); return v; }
-    SymbolicValue* get(const IR::Expression* expression) const {
-        auto r = ::get(value, expression);
-        BUG_CHECK(r != nullptr, "no evaluation for %1%", expression);
-        return r;
-    }
+
     void postorder(const IR::Constant* expression) override;
     void postorder(const IR::BoolLiteral* expression) override;
     void postorder(const IR::Operation_Binary* expression) override;
@@ -163,6 +158,12 @@ class ExpressionEvaluator : public Inspector {
     // May mutate the valueMap, when evaluating expression with side-effects.
     // If leftValue is true we are returning a leftValue.
     SymbolicValue* evaluate(const IR::Expression* expression, bool leftValue);
+
+    SymbolicValue* get(const IR::Expression* expression) const {
+        auto r = ::get(value, expression);
+        BUG_CHECK(r != nullptr, "no evaluation for %1%", expression);
+        return r;
+    }
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -304,7 +305,7 @@ class SymbolicInteger final : public ScalarValue {
     explicit SymbolicInteger(const IR::Type_Bits* type) :
             ScalarValue(ScalarValue::ValueState::Uninitialized, type), constant(nullptr) {}
     SymbolicInteger(ScalarValue::ValueState state, const IR::Type_Bits* type) :
-            ScalarValue(state, type) {}
+            ScalarValue(state, type), constant(nullptr) {}
     explicit SymbolicInteger(const IR::Constant* constant) :
             ScalarValue(ScalarValue::ValueState::Constant, constant->type), constant(constant)
     { CHECK_NULL(constant); }
@@ -393,7 +394,7 @@ class SymbolicStruct : public SymbolicValue {
 class SymbolicHeader : public SymbolicStruct {
  public:
     explicit SymbolicHeader(const IR::Type_Header* type) : SymbolicStruct(type) {}
-    SymbolicBool* valid;
+    SymbolicBool* valid = nullptr;
     SymbolicHeader(const IR::Type_Header* type, bool uninitialized,
                    const SymbolicValueFactory* factory);
     virtual void setValid(bool v);

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header S {
@@ -35,20 +36,20 @@ control DeparserI(packet_out packet, in Parsed_packet hdr) {
 }
 
 control ingress(inout Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
-    varbit<32> s_0;
-    @hidden action act() {
+    @name("ingress.s") varbit<32> s_0;
+    @hidden action issue4475bmv2l41() {
         s_0 = hdr.h1.var;
         hdr.h1.var = hdr.h2.var;
         hdr.h2.var = s_0;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue4475bmv2l41 {
         actions = {
-            act();
+            issue4475bmv2l41();
         }
-        const default_action = act();
+        const default_action = issue4475bmv2l41();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue4475bmv2l41.apply();
     }
 }
 

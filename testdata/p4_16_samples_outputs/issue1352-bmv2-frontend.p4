@@ -2,6 +2,7 @@ error {
     UnreachableState
 }
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<9> egressSpec_t;
@@ -61,18 +62,18 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 }
 
 control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_1() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name("MyIngress.drop") action drop_1() {
-        mark_to_drop();
+    @name("MyIngress.drop") action drop() {
+        mark_to_drop(standard_metadata);
     }
-    @name("MyIngress.drop") action drop_3() {
-        mark_to_drop();
+    @name("MyIngress.drop") action drop_2() {
+        mark_to_drop(standard_metadata);
     }
-    @name("MyIngress.set_dmac") action set_dmac(macAddr_t dstAddr) {
-        hdr.ethernet.dstAddr = dstAddr;
+    @name("MyIngress.set_dmac") action set_dmac(@name("dstAddr") macAddr_t dstAddr_2) {
+        hdr.ethernet.dstAddr = dstAddr_2;
     }
     @name("MyIngress.forward") table forward_0 {
         key = {
@@ -80,14 +81,14 @@ control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadat
         }
         actions = {
             set_dmac();
-            drop_1();
+            drop();
             NoAction_0();
         }
         size = 1024;
         default_action = NoAction_0();
     }
-    @name("MyIngress.set_nhop") action set_nhop(ip4Addr_t dstAddr, egressSpec_t port) {
-        hdr.ipv4.dstAddr = dstAddr;
+    @name("MyIngress.set_nhop") action set_nhop(@name("dstAddr") ip4Addr_t dstAddr_3, @name("port") egressSpec_t port) {
+        hdr.ipv4.dstAddr = dstAddr_3;
         standard_metadata.egress_spec = port;
     }
     @name("MyIngress.ipv4_lpm") table ipv4_lpm_0 {
@@ -96,7 +97,7 @@ control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadat
         }
         actions = {
             set_nhop();
-            drop_3();
+            drop_2();
             NoAction_1();
         }
         size = 1024;
@@ -114,10 +115,10 @@ control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadat
 }
 
 control MyEgress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_5() {
+    @noWarn("unused") @name(".NoAction") action NoAction_5() {
     }
-    @name("MyEgress.rewrite_mac") action rewrite_mac(macAddr_t srcAddr) {
-        hdr.ethernet.srcAddr = srcAddr;
+    @name("MyEgress.rewrite_mac") action rewrite_mac(@name("srcAddr") macAddr_t srcAddr_1) {
+        hdr.ethernet.srcAddr = srcAddr_1;
         hdr.ipv4.ttl = hdr.ipv4.ttl + 8w255;
     }
     @name("MyEgress.send_frame") table send_frame_0 {

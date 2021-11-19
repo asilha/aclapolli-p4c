@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -27,7 +28,7 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     @name(".my_drop") action my_drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".set_egress_port") action set_egress_port(bit<9> egress_port) {
         standard_metadata.egress_spec = egress_port;

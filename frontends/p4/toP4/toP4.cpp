@@ -16,9 +16,11 @@ limitations under the License.
 
 #include <sstream>
 #include <string>
+#include <deque>
 #include "toP4.h"
 #include "frontends/common/options.h"
 #include "frontends/parsers/p4/p4parser.hpp"
+#include "frontends/p4/fromv1.0/v1model.h"
 
 namespace P4 {
 
@@ -43,6 +45,7 @@ void ToP4::end_apply(const IR::Node*) {
 
 // Try to guess whether a file is a "system" file
 bool ToP4::isSystemFile(cstring file) {
+    if (noIncludes) return false;
     if (file.startsWith(p4includePath)) return true;
     return false;
 }
@@ -163,15 +166,21 @@ bool ToP4::preorder(const IR::P4Program* program) {
              * we ignore mainFile and don't emit #includes for any non-system header */
 
             if (includesEmitted.find(sourceFile) == includesEmitted.end()) {
-                builder.append("#include ");
                 if (sourceFile.startsWith(p4includePath)) {
                     const char *p = sourceFile.c_str() + strlen(p4includePath);
                     if (*p == '/') p++;
-                    builder.append("<");
+                    if (P4V1::V1Model::instance.file.name == p) {
+                        P4V1::getV1ModelVersion g;
+                        program->apply(g);
+                        builder.append("#define V1MODEL_VERSION ");
+                        builder.append(g.version);
+                        builder.appendLine("");
+                    }
+                    builder.append("#include <");
                     builder.append(p);
                     builder.appendLine(">");
                 } else {
-                    builder.append("\"");
+                    builder.append("#include \"");
                     builder.append(sourceFile);
                     builder.appendLine("\"");
                 }
@@ -198,6 +207,11 @@ bool ToP4::preorder(const IR::Type_Bits* t) {
     } else {
         builder.append(t->toString());
     }
+    return false;
+}
+
+bool ToP4::preorder(const IR::Type_String* t) {
+    builder.append(t->toString());
     return false;
 }
 
@@ -253,7 +267,7 @@ bool ToP4::preorder(const IR::Type_Specialized* t) {
 
 bool ToP4::preorder(const IR::Argument* arg) {
     if (!arg->name.name.isNullOrEmpty()) {
-        builder.append(arg->name.toString());
+        builder.append(arg->name.name);
         builder.append(" = ");
     }
     visit(arg->expression);
@@ -282,7 +296,7 @@ bool ToP4::preorder(const IR::Type_Newtype* t) {
     return false;
 }
 
-bool ToP4::preorder(const IR::Type_Tuple* t) {
+bool ToP4::preorder(const IR::Type_BaseList* t) {
     dump(3);
     builder.append("tuple<");
     bool first = true;
@@ -365,12 +379,15 @@ bool ToP4::preorder(const IR::TypeParameters* t) {
     if (!t->empty()) {
         builder.append("<");
         bool first = true;
+        bool decl = isDeclaration;
+        isDeclaration = false;
         for (auto a : t->parameters) {
             if (!first)
                 builder.append(", ");
             first = false;
             visit(a);
         }
+        isDeclaration = decl;
         builder.append(">");
     }
     return false;
@@ -419,15 +436,19 @@ bool ToP4::preorder(const IR::Function* function) {
 
 bool ToP4::preorder(const IR::Type_Extern* t) {
     dump(2);
-    visit(t->annotations);
-    builder.append("extern ");
+    if (isDeclaration) {
+        visit(t->annotations);
+        builder.append("extern "); }
     builder.append(t->name);
     visit(t->typeParameters);
+    if (!isDeclaration)
+        return false;
     builder.spc();
     builder.blockStart();
 
     if (t->attributes.size() != 0)
-        ::warning("%1%: extern has attributes, which are not supported "
+        ::warning(ErrorType::WARN_UNSUPPORTED,
+                  "%1%: extern has attributes, which are not supported "
                   "in P4-16, and thus are not emitted as P4-16", t);
 
     setVecSep(";\n", ";\n");
@@ -470,10 +491,14 @@ bool ToP4::preorder(const IR::Type_Package* package) {
 
 bool ToP4::process(const IR::Type_StructLike* t, const char* name) {
     dump(2);
-    builder.emitIndent();
-    visit(t->annotations);
-    builder.appendFormat("%s ", name);
+    if (isDeclaration) {
+        builder.emitIndent();
+        visit(t->annotations);
+        builder.appendFormat("%s ", name); }
     builder.append(t->name);
+    visit(t->typeParameters);
+    if (!isDeclaration)
+        return false;
     builder.spc();
     builder.blockStart();
 
@@ -537,34 +562,18 @@ bool ToP4::preorder(const IR::Type_Control* t) {
 ///////////////////////
 
 bool ToP4::preorder(const IR::Constant* c) {
-    mpz_class value = c->value;
     const IR::Type_Bits* tb = dynamic_cast<const IR::Type_Bits*>(c->type);
-    if (tb != nullptr) {
-        mpz_class zero = 0;
-        if (value < zero) {
-            builder.append("-");
-            value = -value;
-        }
-        builder.appendFormat("%d", tb->size);
-        builder.append(tb->isSigned ? "s" : "w");
+    unsigned width;
+    bool sign;
+    if (tb == nullptr) {
+        width = 0;
+        sign = false;
+    } else {
+        width = tb->size;
+        sign = tb->isSigned;
     }
-    const char* repr = mpz_get_str(nullptr, c->base, value.get_mpz_t());
-    switch (c->base) {
-        case 2:
-            builder.append("0b");
-            break;
-        case 8:
-            builder.append("0o");
-            break;
-        case 16:
-            builder.append("0x");
-            break;
-        case 10:
-            break;
-        default:
-            BUG("%1%: Unexpected base %2%", c, c->base);
-    }
-    builder.append(repr);
+    cstring s = Util::toString(c->value, width, sign, c->base);
+    builder.append(s);
     return false;
 }
 
@@ -847,11 +856,14 @@ bool ToP4::preorder(const IR::NamedExpression* e) {
     return false;
 }
 
-bool ToP4::preorder(const IR::StructInitializerExpression* e) {
-    // Currently the P4 language does not have a syntax
-    // for struct initializers, so we use the same syntax as for list expressions.
-    // TODO: this is incorrect if the fields are not in the same order as
-    // in the type.
+bool ToP4::preorder(const IR::StructExpression* e) {
+    if (expressionPrecedence > DBPrint::Prec_Prefix)
+        builder.append("(");
+    if (e->structType != nullptr) {
+        builder.append("(");
+        visit(e->structType);
+        builder.append(")");
+    }
     builder.append("{");
     int prec = expressionPrecedence;
     expressionPrecedence = DBPrint::Prec_Low;
@@ -860,10 +872,14 @@ bool ToP4::preorder(const IR::StructInitializerExpression* e) {
         if (!first)
             builder.append(",");
         first = false;
+        builder.append(c->name.name);
+        builder.append(" = ");
         visit(c->expression);
     }
     expressionPrecedence = prec;
     builder.append("}");
+    if (expressionPrecedence > DBPrint::Prec_Prefix)
+        builder.append(")");
     return false;
 }
 
@@ -879,11 +895,14 @@ bool ToP4::preorder(const IR::MethodCallExpression* e) {
         builder.append("(");
     visit(e->method);
     if (!e->typeArguments->empty()) {
+        bool decl = isDeclaration;
+        isDeclaration = false;
         builder.append("<");
         setVecSep(", ");
         visit(e->typeArguments);
         doneVec();
         builder.append(">");
+        isDeclaration = decl;
     }
     builder.append("(");
     setVecSep(", ");
@@ -1035,25 +1054,33 @@ bool ToP4::preorder(const IR::IfStatement* s) {
     visit(s->condition);
     builder.append(") ");
     if (!s->ifTrue->is<IR::BlockStatement>()) {
+        builder.append("{");
         builder.increaseIndent();
         builder.newline();
         builder.emitIndent();
     }
     visit(s->ifTrue);
-    if (!s->ifTrue->is<IR::BlockStatement>())
-        builder.decreaseIndent();
-    if (s->ifFalse != nullptr) {
+    if (!s->ifTrue->is<IR::BlockStatement>()) {
         builder.newline();
+        builder.decreaseIndent();
         builder.emitIndent();
-        builder.append("else ");
-        if (!s->ifFalse->is<IR::BlockStatement>()) {
+        builder.append("}");
+    }
+    if (s->ifFalse != nullptr) {
+        builder.append(" else ");
+        if (!s->ifFalse->is<IR::BlockStatement>() && !s->ifFalse->is<IR::IfStatement>()) {
+            builder.append("{");
             builder.increaseIndent();
             builder.newline();
             builder.emitIndent();
         }
         visit(s->ifFalse);
-        if (!s->ifFalse->is<IR::BlockStatement>())
+        if (!s->ifFalse->is<IR::BlockStatement>() && !s->ifFalse->is<IR::IfStatement>()) {
+            builder.newline();
             builder.decreaseIndent();
+            builder.emitIndent();
+            builder.append("}");
+        }
     }
     return false;
 }
@@ -1081,7 +1108,7 @@ bool ToP4::preorder(const IR::SwitchStatement* s) {
     setVecSep("\n", "\n");
     preorder(&s->cases);
     doneVec();
-    builder.blockEnd(true);
+    builder.blockEnd(false);
     return false;
 }
 
@@ -1090,15 +1117,17 @@ bool ToP4::preorder(const IR::SwitchStatement* s) {
 bool ToP4::preorder(const IR::Annotation * a) {
     builder.append("@");
     builder.append(a->name);
+    char open = a->structured ? '[' : '(';
+    char close = a->structured ? ']' : ')';
     if (!a->expr.empty()) {
-        builder.append("(");
+        builder.append(open);
         setVecSep(", ");
         preorder(&a->expr);
         doneVec();
-        builder.append(")");
+        builder.append(close);
     }
     if (!a->kv.empty()) {
-        builder.append("(");
+        builder.append(open);
         bool first = true;
         for (auto kvp : a->kv) {
             if (!first)
@@ -1108,13 +1137,16 @@ bool ToP4::preorder(const IR::Annotation * a) {
             builder.append("=");
             visit(kvp->expression);
         }
-        builder.append(")");
+        builder.append(close);
+    }
+    if (a->expr.empty() && a->kv.empty() && a->structured) {
+        builder.append("[]");
     }
     if (!a->body.empty() && a->expr.empty() && a->kv.empty()) {
         // Have an unparsed annotation.
         // We could be prettier here with smarter logic, but let's do the easy
         // thing by separating every token with a space.
-        builder.append("(");
+        builder.append(open);
         bool first = true;
         for (auto tok : a->body) {
             if (!first) builder.append(" ");
@@ -1126,7 +1158,7 @@ bool ToP4::preorder(const IR::Annotation * a) {
             builder.append(tok->text);
             if (haveStringLiteral) builder.append("\"");
         }
-        builder.append(")");
+        builder.append(close);
     }
     builder.spc();
     return false;
@@ -1150,7 +1182,10 @@ bool ToP4::preorder(const IR::Parameter* p) {
         default:
             BUG("Unexpected case");
     }
+    bool decl = isDeclaration;
+    isDeclaration = false;
     visit(p->type);
+    isDeclaration = decl;
     builder.spc();
     builder.append(p->name);
     if (p->defaultValue != nullptr) {
@@ -1348,7 +1383,6 @@ bool ToP4::preorder(const IR::EntriesList *l) {
     builder.decreaseIndent();
     builder.emitIndent();
     builder.append("}");
-    builder.newline();
     return false;
 }
 
@@ -1365,7 +1399,6 @@ bool ToP4::preorder(const IR::Entry *e) {
     visit(e->action);
     visit(e->annotations);
     builder.append(";");
-    builder.newline();
     return false;
 }
 
@@ -1387,4 +1420,17 @@ bool ToP4::preorder(const IR::Path* p) {
     builder.append(p->asString());
     return false;
 }
+
+std::string toP4(const IR::INode* node) {
+    std::stringstream stream;
+    P4::ToP4 toP4(&stream, false);
+    node->getNode()->apply(toP4);
+    return stream.str();
+}
+
+void dumpP4(const IR::INode* node) {
+    auto s = toP4(node);
+    std::cout << s;
+}
+
 }  // namespace P4

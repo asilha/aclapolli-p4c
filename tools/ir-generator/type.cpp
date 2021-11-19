@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+#include "type.h"
 
 #include "irclass.h"
 
@@ -151,4 +153,25 @@ cstring ArrayType::declSuffix() const {
     char buf[16];
     snprintf(buf, sizeof(buf), "[%d]", size);
     return buf;
+}
+
+const IrClass* FunctionType::resolve(const IrNamespace *ns) const {
+    ret->resolve(ns);
+    for (auto arg : args) arg->resolve(ns);
+    return nullptr;
+}
+
+cstring FunctionType::toString() const {
+    cstring result = ret->toString();
+    result += "(";
+    const char* sep = "";
+    for (auto arg : args) {
+        result += sep;
+        if (arg->isResolved()) result += "const ";
+        result += arg->toString().c_str();
+        if (arg->isResolved()) result += "*";
+        sep = ", ";
+    }
+    result += ")";
+    return result;
 }

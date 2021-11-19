@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -8,13 +9,6 @@ struct ingress_metadata_t {
     bit<32> flowlet_lasttime;
     bit<14> ecmp_offset;
     bit<32> nhop_ipv4;
-}
-
-struct intrinsic_metadata_t {
-    bit<48> ingress_global_timestamp;
-    bit<32> lf_field_list;
-    bit<16> mcast_grp;
-    bit<16> egress_rid;
 }
 
 header ethernet_t {
@@ -54,9 +48,7 @@ header tcp_t {
 
 struct metadata {
     @name("ingress_metadata") 
-    ingress_metadata_t   ingress_metadata;
-    @name("intrinsic_metadata") 
-    intrinsic_metadata_t intrinsic_metadata;
+    ingress_metadata_t ingress_metadata;
 }
 
 struct headers {
@@ -93,13 +85,13 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name("egress.rewrite_mac") action rewrite_mac(bit<48> smac) {
+    @name("egress.rewrite_mac") action rewrite_mac(@name("smac") bit<48> smac) {
         hdr.ethernet.srcAddr = smac;
     }
     @name("egress._drop") action _drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name("egress.send_frame") table send_frame_0 {
         actions = {
@@ -119,44 +111,44 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_1() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_8() {
+    @noWarn("unused") @name(".NoAction") action NoAction_8() {
     }
-    @name(".NoAction") action NoAction_9() {
+    @noWarn("unused") @name(".NoAction") action NoAction_9() {
     }
-    @name(".NoAction") action NoAction_10() {
+    @noWarn("unused") @name(".NoAction") action NoAction_10() {
     }
-    @name(".NoAction") action NoAction_11() {
+    @noWarn("unused") @name(".NoAction") action NoAction_11() {
     }
     @name("ingress.flowlet_id") register<bit<16>>(32w8192) flowlet_id_0;
     @name("ingress.flowlet_lasttime") register<bit<32>>(32w8192) flowlet_lasttime_0;
     @name("ingress._drop") action _drop_2() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name("ingress._drop") action _drop_5() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name("ingress._drop") action _drop_6() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
-    @name("ingress.set_ecmp_select") action set_ecmp_select(bit<8> ecmp_base, bit<8> ecmp_count) {
+    @name("ingress.set_ecmp_select") action set_ecmp_select(@name("ecmp_base") bit<8> ecmp_base, @name("ecmp_count") bit<8> ecmp_count) {
         hash<bit<14>, bit<10>, tuple<bit<32>, bit<32>, bit<8>, bit<16>, bit<16>, bit<16>>, bit<20>>(meta.ingress_metadata.ecmp_offset, HashAlgorithm.crc16, (bit<10>)ecmp_base, { hdr.ipv4.srcAddr, hdr.ipv4.dstAddr, hdr.ipv4.protocol, hdr.tcp.srcPort, hdr.tcp.dstPort, meta.ingress_metadata.flowlet_id }, (bit<20>)ecmp_count);
     }
-    @name("ingress.set_nhop") action set_nhop(bit<32> nhop_ipv4, bit<9> port) {
-        meta.ingress_metadata.nhop_ipv4 = nhop_ipv4;
+    @name("ingress.set_nhop") action set_nhop(@name("nhop_ipv4") bit<32> nhop_ipv4_1, @name("port") bit<9> port) {
+        meta.ingress_metadata.nhop_ipv4 = nhop_ipv4_1;
         standard_metadata.egress_spec = port;
         hdr.ipv4.ttl = hdr.ipv4.ttl + 8w255;
     }
     @name("ingress.lookup_flowlet_map") action lookup_flowlet_map() {
         hash<bit<13>, bit<13>, tuple<bit<32>, bit<32>, bit<8>, bit<16>, bit<16>>, bit<26>>(meta.ingress_metadata.flowlet_map_index, HashAlgorithm.crc16, 13w0, { hdr.ipv4.srcAddr, hdr.ipv4.dstAddr, hdr.ipv4.protocol, hdr.tcp.srcPort, hdr.tcp.dstPort }, 26w13);
         flowlet_id_0.read(meta.ingress_metadata.flowlet_id, (bit<32>)meta.ingress_metadata.flowlet_map_index);
-        meta.ingress_metadata.flow_ipg = (bit<32>)meta.intrinsic_metadata.ingress_global_timestamp;
+        meta.ingress_metadata.flow_ipg = (bit<32>)standard_metadata.ingress_global_timestamp;
         flowlet_lasttime_0.read(meta.ingress_metadata.flowlet_lasttime, (bit<32>)meta.ingress_metadata.flowlet_map_index);
         meta.ingress_metadata.flow_ipg = meta.ingress_metadata.flow_ipg - meta.ingress_metadata.flowlet_lasttime;
-        flowlet_lasttime_0.write((bit<32>)meta.ingress_metadata.flowlet_map_index, (bit<32>)meta.intrinsic_metadata.ingress_global_timestamp);
+        flowlet_lasttime_0.write((bit<32>)meta.ingress_metadata.flowlet_map_index, (bit<32>)standard_metadata.ingress_global_timestamp);
     }
-    @name("ingress.set_dmac") action set_dmac(bit<48> dmac) {
+    @name("ingress.set_dmac") action set_dmac(@name("dmac") bit<48> dmac) {
         hdr.ethernet.dstAddr = dmac;
     }
     @name("ingress.update_flowlet_id") action update_flowlet_id() {
@@ -216,8 +208,9 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     apply {
         @atomic {
             flowlet_0.apply();
-            if (meta.ingress_metadata.flow_ipg > 32w50000) 
+            if (meta.ingress_metadata.flow_ipg > 32w50000) {
                 new_flowlet_0.apply();
+            }
         }
         ecmp_group_0.apply();
         ecmp_nhop_0.apply();

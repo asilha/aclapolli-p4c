@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -36,8 +37,9 @@ header vlan_tag_t {
 }
 
 struct metadata {
-    @name(".ing_metadata") 
-    ingress_metadata_t ing_metadata;
+    bit<1> _ing_metadata_drop0;
+    bit<8> _ing_metadata_egress_port1;
+    bit<4> _ing_metadata_packet_type2;
 }
 
 struct headers {
@@ -78,19 +80,19 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
     }
     @name(".nop") action nop() {
     }
     @name(".nop") action nop_2() {
     }
-    @name(".set_egress_port") action set_egress_port(bit<8> egress_port) {
-        meta.ing_metadata.egress_port = egress_port;
+    @name(".set_egress_port") action set_egress_port(@name("egress_port") bit<8> egress_port_1) {
+        meta._ing_metadata_egress_port1 = egress_port_1;
     }
-    @name(".set_egress_port") action set_egress_port_2(bit<8> egress_port) {
-        meta.ing_metadata.egress_port = egress_port;
+    @name(".set_egress_port") action set_egress_port_2(@name("egress_port") bit<8> egress_port_2) {
+        meta._ing_metadata_egress_port1 = egress_port_2;
     }
     @name(".ipv4_match") table ipv4_match_0 {
         actions = {
@@ -115,10 +117,11 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         default_action = NoAction_3();
     }
     apply {
-        if (hdr.ethernet.etherType == 16w0x800) 
+        if (hdr.ethernet.etherType == 16w0x800) {
             ipv4_match_0.apply();
-        else 
+        } else {
             l2_match_0.apply();
+        }
     }
 }
 

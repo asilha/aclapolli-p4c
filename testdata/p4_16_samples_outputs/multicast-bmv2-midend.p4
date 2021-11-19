@@ -1,13 +1,6 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
-
-struct intrinsic_metadata_t {
-    bit<16> mcast_grp;
-    bit<16> egress_rid;
-    bit<16> mcast_hash;
-    bit<32> lf_field_list;
-    bit<48> ingress_global_timestamp;
-}
 
 struct routing_metadata_t {
     bit<32> nhop_ipv4;
@@ -35,10 +28,7 @@ header ipv4_t {
 }
 
 struct metadata {
-    @name("intrinsic_metadata") 
-    intrinsic_metadata_t intrinsic_metadata;
-    @name("routing_metadata") 
-    routing_metadata_t   routing_metadata;
+    bit<32> _routing_metadata_nhop_ipv40;
 }
 
 struct headers {
@@ -66,13 +56,13 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".rewrite_mac") action rewrite_mac(bit<48> smac) {
+    @name(".rewrite_mac") action rewrite_mac(@name("smac") bit<48> smac) {
         hdr.ethernet.srcAddr = smac;
     }
     @name("._drop") action _drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name("egress.send_frame") table send_frame_0 {
         actions = {
@@ -92,26 +82,26 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_1() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_6() {
+    @noWarn("unused") @name(".NoAction") action NoAction_6() {
     }
-    @name(".NoAction") action NoAction_7() {
+    @noWarn("unused") @name(".NoAction") action NoAction_7() {
     }
     @name(".bcast") action bcast() {
-        meta.intrinsic_metadata.mcast_grp = 16w1;
+        standard_metadata.mcast_grp = 16w1;
     }
-    @name(".set_dmac") action set_dmac(bit<48> dmac) {
+    @name(".set_dmac") action set_dmac(@name("dmac") bit<48> dmac) {
         hdr.ethernet.dstAddr = dmac;
     }
     @name("._drop") action _drop_2() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name("._drop") action _drop_4() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
-    @name(".set_nhop") action set_nhop(bit<32> nhop_ipv4, bit<9> port) {
-        meta.routing_metadata.nhop_ipv4 = nhop_ipv4;
+    @name(".set_nhop") action set_nhop(@name("nhop_ipv4") bit<32> nhop_ipv4_1, @name("port") bit<9> port) {
+        meta._routing_metadata_nhop_ipv40 = nhop_ipv4_1;
         standard_metadata.egress_spec = port;
         hdr.ipv4.ttl = hdr.ipv4.ttl + 8w255;
     }
@@ -130,7 +120,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
             @defaultonly NoAction_6();
         }
         key = {
-            meta.routing_metadata.nhop_ipv4: exact @name("meta.routing_metadata.nhop_ipv4") ;
+            meta._routing_metadata_nhop_ipv40: exact @name("meta.routing_metadata.nhop_ipv4") ;
         }
         size = 512;
         default_action = NoAction_6();
@@ -151,9 +141,9 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         if (hdr.ipv4.isValid()) {
             ipv4_lpm_0.apply();
             forward_0.apply();
-        }
-        else 
+        } else {
             broadcast_0.apply();
+        }
     }
 }
 

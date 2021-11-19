@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # Copyright 2013-present Barefoot Networks, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
 
 # Runs the BMv2 behavioral model simulator with input from an stf file
 
-from __future__ import print_function
 from subprocess import Popen
 from threading import Thread
 from glob import glob
@@ -33,7 +32,6 @@ import time
 import random
 import errno
 import socket
-from string import maketrans
 from collections import OrderedDict
 try:
     from scapy.layers.all import *
@@ -46,7 +44,7 @@ FAILURE = 1
 
 class TimeoutException(Exception): pass
 def signal_handler(signum, frame):
-    raise TimeoutException, "Timed out!"
+    raise TimeoutException("Timed out!")
 signal.signal(signal.SIGALRM, signal_handler)
 
 class Options(object):
@@ -72,12 +70,11 @@ def nextWord(text, sep = None):
 def ByteToHex(byteStr):
     return ''.join( [ "%02X " % ord( x ) for x in byteStr ] ).strip()
 
-def HexToByte(hexStr):
-    bytes = []
-    hexStr = ''.join( hexStr.split(" ") )
-    for i in range(0, len(hexStr), 2):
-        bytes.append( chr( int (hexStr[i:i+2], 16 ) ) )
-    return ''.join( bytes )
+def convert_packet_bin2hexstr(pkt_bin):
+    return pkt_bin.convert_to(Raw).load.hex().upper()
+
+def convert_packet_stf2hexstr(pkt_stf_text):
+    return ''.join(pkt_stf_text.split()).upper()
 
 def reportError(*message):
     print("***", *message)
@@ -185,7 +182,7 @@ class TableKeyInstance(object):
         assert isinstance(tableKey, TableKey)
         self.values = {}
         self.key = tableKey
-        for f,t in tableKey.fields.iteritems():
+        for f,t in tableKey.fields.items():
             if t == "ternary":
                 self.values[f] = "0&&&0"
             elif t == "lpm":
@@ -256,7 +253,7 @@ class TableKeyInstance(object):
             return value
         values = "0123456789abcdefABCDEF*"
         replacements = (mask * 22) + "0"
-        trans = maketrans(values, replacements)
+        trans = str.maketrans(values, replacements)
         m = value.translate(trans)
         return prefix + value.replace("*", "0") + "&&&" + prefix + m
     def makeLpm(self, value):
@@ -384,11 +381,11 @@ class RunBMV2(object):
     def do_cli_command(self, cmd):
         if self.options.verbose:
             print(cmd)
-        self.cli_stdin.write(cmd + "\n")
+        self.cli_stdin.write(bytes(cmd + "\n", encoding='utf8'))
         self.cli_stdin.flush()
         self.packetDelay = 1
     def do_command(self, cmd):
-        if self.options.verbose:
+        if self.options.verbose and cmd != "":
             print("STF Command:", cmd)
         first, cmd = nextWord(cmd)
         if first == "":
@@ -397,12 +394,24 @@ class RunBMV2(object):
             self.do_cli_command(self.parse_table_add(cmd))
         elif first == "setdefault":
             self.do_cli_command(self.parse_table_set_default(cmd))
-        elif first == "mirroring_add":
-            # Pass through mirroring_add commands unchanged, with same
+        elif first == "mirroring_add" or first == "mirroring_add_mc" or first == "mirroring_delete" or first == "mirroring_get":
+            # Pass through mirroring commands unchanged, with same
             # arguments as expected by simple_switch_CLI
             self.do_cli_command(first + " " + cmd)
         elif first == "mc_mgrp_create" or first == "mc_node_create" or first == "mc_node_associate":
             # Pass through multicast group commands unchanged, with
+            # same arguments as expected by simple_switch_CLI
+            self.do_cli_command(first + " " + cmd)
+        elif first == "counter_read" or first == "counter_write":
+            # Pass through counter commands unchanged, with
+            # same arguments as expected by simple_switch_CLI
+            self.do_cli_command(first + " " + cmd)
+        elif first == "register_read" or first == "register_write" or first == "register_reset":
+            # Pass through register commands unchanged, with
+            # same arguments as expected by simple_switch_CLI
+            self.do_cli_command(first + " " + cmd)
+        elif first == "meter_get_rates" or first == "meter_set_rates" or first == "meter_array_set_rates":
+            # Pass through meter commands unchanged, with
             # same arguments as expected by simple_switch_CLI
             self.do_cli_command(first + " " + cmd)
         elif first == "packet":
@@ -411,7 +420,7 @@ class RunBMV2(object):
             data = ''.join(data.split())
             time.sleep(self.packetDelay)
             try:
-                self.interfaces[interface]._write_packet(HexToByte(data))
+                self.interfaces[interface]._write_packet(bytes.fromhex(data))
             except ValueError:
                 reportError("Invalid packet data", data)
                 return FAILURE
@@ -643,7 +652,7 @@ class RunBMV2(object):
                         line, comment = nextWord(line, "#")
                         self.do_command(line)
                 cli.stdin.close()
-                for interface, fp in self.interfaces.iteritems():
+                for interface, fp in self.interfaces.items():
                     fp.close()
                 # Give time to the model to execute
                 time.sleep(2)
@@ -676,10 +685,17 @@ class RunBMV2(object):
             print("Execution completed")
         return rv
     def comparePacket(self, expected, received):
-        received = ''.join(ByteToHex(str(received)).split()).upper()
-        expected = ''.join(expected.split()).upper()
+        received = convert_packet_bin2hexstr(received)
+        expected = convert_packet_stf2hexstr(expected)
+        strict_length_check = False
+        if expected[-1] == '$':
+            strict_length_check = True
+            expected = expected[:-1]
         if len(received) < len(expected):
-            reportError("Received packet too short", len(received), "vs", len(expected))
+            reportError("Received packet too short", len(received), "vs",
+                        len(expected), "(in units of hex digits)")
+            reportError("Full expected packet is ", expected)
+            reportError("Full received packet is ", received)
             return FAILURE
         for i in range(0, len(expected)):
             if expected[i] == "*":
@@ -687,8 +703,15 @@ class RunBMV2(object):
             if expected[i] != received[i]:
                 reportError("Received packet ", received)
                 reportError("Packet different at position", i, ": expected", expected[i], ", received", received[i])
-                reportError("Full received packed is ", received)
+                reportError("Full expected packet is ", expected)
+                reportError("Full received packet is ", received)
                 return FAILURE
+        if strict_length_check and len(received) > len(expected):
+            reportError("Received packet too long", len(received), "vs",
+                        len(expected), "(in units of hex digits)")
+            reportError("Full expected packet is ", expected)
+            reportError("Full received packet is ", received)
+            return FAILURE
         return SUCCESS
     def showLog(self):
         with open(self.folder + "/" + self.switchLogFile + ".txt") as a:
@@ -717,7 +740,7 @@ class RunBMV2(object):
                 for pkt in packets:
                     observationLog.write('%d %s\n' % (
                         interface,
-                        ''.join(ByteToHex(str(pkt)).split()).upper()))
+                        convert_packet_bin2hexstr(pkt)))
                 observationLog.close()
 
             # Check for expected packets.
@@ -732,6 +755,18 @@ class RunBMV2(object):
             if len(expected) != len(packets):
                 reportError("Expected", len(expected), "packets on port", str(interface),
                             "got", len(packets))
+                reportError("Full list of %d expected packets on port %d:"
+                            "" % (len(expected), interface))
+                for i in range(len(expected)):
+                    reportError("    packet #%2d: %s"
+                                "" % (i+1,
+                                      convert_packet_stf2hexstr(expected[i])))
+                reportError("Full list of %d received packets on port %d:"
+                            "" % (len(packets), interface))
+                for i in range(len(packets)):
+                    reportError("    packet #%2d: %s"
+                                "" % (i+1,
+                                      convert_packet_bin2hexstr(packets[i])))
                 self.showLog()
                 return FAILURE
             for i in range(0, len(expected)):
@@ -744,7 +779,8 @@ class RunBMV2(object):
                 del self.expected[interface]
         if len(self.expected) != 0:
             # didn't find all the expects we were expecting
-            reportError("Expected packects on ports", self.expected.keys(), "not received")
+            reportError("Expected packets on ports",
+                        list(self.expected.keys()), "not received")
             return FAILURE
         else:
             return SUCCESS

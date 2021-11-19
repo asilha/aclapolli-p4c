@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header hdr {
@@ -62,15 +63,10 @@ control ingress(inout Header_t h, inout Meta_t m, inout standard_metadata_t stan
         default_action = a;
         const entries = {
                         1 .. 8 : a_with_control_params(21);
-
                         6 .. 12 : a_with_control_params(22);
-
                         default : a_with_control_params(23);
-
                         (0x18, 0xf) : a_with_control_params(24);
-
         }
-
     }
     apply {
         t_range.apply();

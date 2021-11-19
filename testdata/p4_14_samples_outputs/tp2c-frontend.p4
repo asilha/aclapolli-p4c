@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -28,19 +29,19 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_7() {
+    @noWarn("unused") @name(".NoAction") action NoAction_7() {
     }
-    @name(".NoAction") action NoAction_8() {
+    @noWarn("unused") @name(".NoAction") action NoAction_8() {
     }
-    @name(".NoAction") action NoAction_9() {
+    @noWarn("unused") @name(".NoAction") action NoAction_9() {
     }
-    @name(".NoAction") action NoAction_10() {
+    @noWarn("unused") @name(".NoAction") action NoAction_10() {
     }
-    @name(".NoAction") action NoAction_11() {
+    @noWarn("unused") @name(".NoAction") action NoAction_11() {
     }
-    @name(".setb1") action setb1(bit<32> val) {
+    @name(".setb1") action setb1(@name("val") bit<32> val) {
         hdr.data.b1 = val;
     }
     @name(".noop") action noop() {
@@ -51,8 +52,8 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name(".noop") action noop_6() {
     }
-    @name(".setb3") action setb3(bit<32> val) {
-        hdr.data.b3 = val;
+    @name(".setb3") action setb3(@name("val") bit<32> val_4) {
+        hdr.data.b3 = val_4;
     }
     @name(".on_hit") action on_hit() {
     }
@@ -62,11 +63,11 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name(".on_miss") action on_miss_2() {
     }
-    @name(".setb2") action setb2(bit<32> val) {
-        hdr.data.b2 = val;
+    @name(".setb2") action setb2(@name("val") bit<32> val_5) {
+        hdr.data.b2 = val_5;
     }
-    @name(".setb4") action setb4(bit<32> val) {
-        hdr.data.b4 = val;
+    @name(".setb4") action setb4(@name("val") bit<32> val_6) {
+        hdr.data.b4 = val_6;
     }
     @name(".A1") table A1_0 {
         actions = {
@@ -138,13 +139,15 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         if (hdr.data.b1 == 32w0) {
             A1_0.apply();
             A2_0.apply();
-            if (hdr.data.f1 == 32w0) 
+            if (hdr.data.f1 == 32w0) {
                 switch (A3_0.apply().action_run) {
                     on_hit: {
                         A4_0.apply();
                     }
+                    default: {
+                    }
                 }
-
+            }
         }
         B1_0.apply();
         B2_0.apply();

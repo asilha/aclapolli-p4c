@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -24,17 +25,17 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
     }
-    @name(".setb1") action setb1(bit<8> val, bit<9> port) {
+    @name(".setb1") action setb1(@name("val") bit<8> val, @name("port") bit<9> port) {
         hdr.data.b1 = val;
         standard_metadata.egress_spec = port;
     }
-    @name(".setb1") action setb1_2(bit<8> val, bit<9> port) {
-        hdr.data.b1 = val;
-        standard_metadata.egress_spec = port;
+    @name(".setb1") action setb1_2(@name("val") bit<8> val_1, @name("port") bit<9> port_1) {
+        hdr.data.b1 = val_1;
+        standard_metadata.egress_spec = port_1;
     }
     @name(".noop") action noop() {
     }
@@ -63,10 +64,11 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         default_action = NoAction_3();
     }
     apply {
-        if (hdr.data.b2 == 8w1 || hdr.data.b2 == 8w2 || hdr.data.b2 == 8w5 || hdr.data.b2 == 8w10 || hdr.data.b2 == 8w17 || hdr.data.b2 == 8w19) 
+        if (hdr.data.b2 == 8w1 || hdr.data.b2 == 8w2 || hdr.data.b2 == 8w5 || hdr.data.b2 == 8w10 || hdr.data.b2 == 8w17 || hdr.data.b2 == 8w19) {
             test1_0.apply();
-        else 
+        } else {
             test2_0.apply();
+        }
     }
 }
 

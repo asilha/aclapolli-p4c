@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<32> IPv4Address;
@@ -34,7 +35,8 @@ struct mystruct1_t {
 }
 
 struct metadata {
-    mystruct1_t mystruct1;
+    bit<16> _mystruct1_hash10;
+    bool    _mystruct1_hash_drop1;
 }
 
 parser parserI(packet_in pkt, out headers hdr, inout metadata meta, inout standard_metadata_t stdmeta) {
@@ -52,17 +54,17 @@ parser parserI(packet_in pkt, out headers hdr, inout metadata meta, inout standa
 }
 
 struct tuple_0 {
-    bit<32> field;
-    bit<32> field_0;
-    bit<8>  field_1;
+    bit<32> f0;
+    bit<32> f1;
+    bit<8>  f2;
 }
 
 control cIngress(inout headers hdr, inout metadata meta, inout standard_metadata_t stdmeta) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
     @name("cIngress.hash_drop_decision") action hash_drop_decision() {
-        hash<bit<16>, bit<16>, tuple_0, bit<32>>(meta.mystruct1.hash1, HashAlgorithm.crc16, 16w0, { hdr.ipv4.srcAddr, hdr.ipv4.dstAddr, hdr.ipv4.protocol }, 32w0xffff);
-        meta.mystruct1.hash_drop = meta.mystruct1.hash1 < 16w0x8000;
+        hash<bit<16>, bit<16>, tuple_0, bit<32>>(meta._mystruct1_hash10, HashAlgorithm.crc16, 16w0, { hdr.ipv4.srcAddr, hdr.ipv4.dstAddr, hdr.ipv4.protocol }, 32w0xffff);
+        meta._mystruct1_hash_drop1 = meta._mystruct1_hash10 < 16w0x8000;
     }
     @name("cIngress.guh") table guh_0 {
         key = {
@@ -75,40 +77,41 @@ control cIngress(inout headers hdr, inout metadata meta, inout standard_metadata
     }
     @name("cIngress.debug_table") table debug_table_0 {
         key = {
-            meta.mystruct1.hash1    : exact @name("meta.mystruct1.hash1") ;
-            meta.mystruct1.hash_drop: exact @name("meta.mystruct1.hash_drop") ;
+            meta._mystruct1_hash10    : exact @name("meta.mystruct1.hash1") ;
+            meta._mystruct1_hash_drop1: exact @name("meta.mystruct1.hash_drop") ;
         }
         actions = {
             NoAction_0();
         }
         default_action = NoAction_0();
     }
-    @hidden action act() {
-        hdr.ethernet.dstAddr = meta.mystruct1.hash1 ++ 7w0 ++ (bit<1>)meta.mystruct1.hash_drop ++ 8w0 ++ 16w0xdead;
+    @hidden action issue1049bmv2l109() {
+        hdr.ethernet.dstAddr = meta._mystruct1_hash10 ++ 7w0 ++ (bit<1>)meta._mystruct1_hash_drop1 ++ 8w0 ++ 16w0xdead;
     }
-    @hidden action act_0() {
-        hdr.ethernet.dstAddr = meta.mystruct1.hash1 ++ 7w0 ++ (bit<1>)meta.mystruct1.hash_drop ++ 8w0 ++ 16w0xc001;
+    @hidden action issue1049bmv2l111() {
+        hdr.ethernet.dstAddr = meta._mystruct1_hash10 ++ 7w0 ++ (bit<1>)meta._mystruct1_hash_drop1 ++ 8w0 ++ 16w0xc001;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue1049bmv2l109 {
         actions = {
-            act();
+            issue1049bmv2l109();
         }
-        const default_action = act();
+        const default_action = issue1049bmv2l109();
     }
-    @hidden table tbl_act_0 {
+    @hidden table tbl_issue1049bmv2l111 {
         actions = {
-            act_0();
+            issue1049bmv2l111();
         }
-        const default_action = act_0();
+        const default_action = issue1049bmv2l111();
     }
     apply {
         if (hdr.ipv4.isValid()) {
             guh_0.apply();
             debug_table_0.apply();
-            if (meta.mystruct1.hash_drop) 
-                tbl_act.apply();
-            else 
-                tbl_act_0.apply();
+            if (meta._mystruct1_hash_drop1) {
+                tbl_issue1049bmv2l109.apply();
+            } else {
+                tbl_issue1049bmv2l111.apply();
+            }
         }
     }
 }

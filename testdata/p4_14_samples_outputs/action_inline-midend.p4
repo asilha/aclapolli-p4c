@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ht {
@@ -6,8 +7,7 @@ struct ht {
 }
 
 struct metadata {
-    @name(".md") 
-    ht md;
+    bit<1> _md_b0;
 }
 
 struct headers {
@@ -20,11 +20,11 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
     @name(".b") action b_1() {
-        meta.md.b = meta.md.b + 1w1;
-        meta.md.b = meta.md.b + 1w1;
+        meta._md_b0 = meta._md_b0 + 1w1;
+        meta._md_b0 = meta._md_b0 + 1w1;
     }
     @name(".t") table t_0 {
         actions = {

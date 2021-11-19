@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header pkt_t {
@@ -68,8 +69,9 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     apply {
         table_0.apply();
         table_1.apply();
-        if (hdr.pkt.field_i_8 == 8w0) 
+        if (hdr.pkt.field_i_8 == 8w0) {
             table_2.apply();
+        }
     }
 }
 

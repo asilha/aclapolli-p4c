@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef standard_metadata_t std_meta_t;
@@ -15,7 +16,7 @@ struct H {
 }
 
 struct M {
-    S s;
+    bit<32> _s_x0;
 }
 
 control VerifyChecksumI(inout H hdr, inout M meta) {

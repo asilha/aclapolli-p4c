@@ -111,9 +111,11 @@ void IR::Primitive::typecheck() const {
     if (prim_info.count(name)) {
         auto &info = prim_info.at(name);
         if (operands.size() < info.min_operands)
-            error("%s: not enough operands for primitive %s", srcInfo, name);
+            error(ErrorType::ERR_INSUFFICIENT,
+                  "%s: not enough operands for primitive %s", srcInfo, name);
         if (operands.size() > info.max_operands)
-            error("%s: too many operands for primitive %s", srcInfo, name);
+            error(ErrorType::ERR_OVERLIMIT,
+                  "%s: too many operands for primitive %s", srcInfo, name);
     } else {
         /*error("%s: unknown primitive %s", srcInfo, name);*/ }
 }
@@ -128,6 +130,19 @@ unsigned IR::Primitive::inferOperandTypes() const {
     if (prim_info.count(name))
         return prim_info.at(name).type_match_operands;
     return 0;
+}
+
+// infer the index width of a meter/counter/register based on the instance count
+// default to 32 bits if we can't figure it out
+int IR::Stateful::index_width() const {
+    return instance_count > 1 ? ceil_log2(instance_count) : 32;
+}
+
+static int inferIndexWidth(const IR::Expression *obj) {
+    if (auto *glob = obj->to<IR::GlobalRef>())
+        if (auto *sful = glob->obj->to<IR::Stateful>())
+            return sful->index_width();
+    return 32;
 }
 
 const IR::Type *IR::Primitive::inferOperandType(int operand) const {
@@ -147,7 +162,7 @@ const IR::Type *IR::Primitive::inferOperandType(int operand) const {
     if (name == "truncate")
         return IR::Type::Bits::get(32);
     if ((name == "count" || name == "execute_meter") && operand == 1)
-        return IR::Type::Bits::get(32);
+        return IR::Type::Bits::get(inferIndexWidth(operands.at(0)));
     if (name.startsWith("execute_stateful") && operand == 1)
         return IR::Type::Bits::get(32);
     if ((name == "clone_ingress_pkt_to_egress" || name == "clone_i2e" ||
@@ -155,9 +170,13 @@ const IR::Type *IR::Primitive::inferOperandType(int operand) const {
         operand == 0) {
         return IR::Type::Bits::get(32); }
     if ((name == "execute") && operand == 2)
-        return IR::Type::Bits::get(32);
+        return IR::Type::Bits::get(inferIndexWidth(operands.at(0)));
     if (name == "modify_field_conditionally" && operand == 1)
-        return IR::Type::Boolean::get();
+        return IR::Type::Bits::get(1);
+    if (name == "register_read" && operand == 2)
+        return IR::Type::Bits::get(inferIndexWidth(operands.at(1)));
+    if (name == "register_write" && operand == 1)
+        return IR::Type::Bits::get(inferIndexWidth(operands.at(0)));
     if (name == "shift_left" && operand == 1) {
         if (operands.at(0)->type->width_bits() > operands.at(1)->type->width_bits())
             return operands.at(0)->type;
@@ -170,7 +189,7 @@ const IR::Type *IR::Primitive::inferOperandType(int operand) const {
 }
 
 IR::V1Program::V1Program() {
-    // This should be kept in sync with v1model.p4
+    // This is used to typecheck P4-14 programs
     auto *standard_metadata_t = new IR::Type_Struct("standard_metadata_t", {
         new IR::StructField("ingress_port", IR::Type::Bits::get(9)),
         new IR::StructField("packet_length", IR::Type::Bits::get(32)),
@@ -179,7 +198,7 @@ IR::V1Program::V1Program() {
         new IR::StructField("egress_instance", IR::Type::Bits::get(16)),
         new IR::StructField("instance_type", IR::Type::Bits::get(32)),
         new IR::StructField("parser_status", IR::Type::Bits::get(8)),
-        new IR::StructField("parser_error_location", IR::Type::Bits::get(8)),
+        new IR::StructField("parser_error_location", IR::Type::Bits::get(8))
     });
     scope.add("standard_metadata_t", new IR::v1HeaderType(standard_metadata_t));
     scope.add("standard_metadata", new IR::Metadata("standard_metadata", standard_metadata_t));

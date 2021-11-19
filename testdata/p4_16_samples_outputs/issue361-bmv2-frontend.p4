@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header H {
@@ -13,9 +14,12 @@ struct my_metadata {
 }
 
 parser MyParser(packet_in b, out my_packet p, inout my_metadata m, inout standard_metadata_t s) {
-    bool bv_0;
+    @name("MyParser.bv") bool bv_0;
     state start {
         bv_0 = true;
+        transition start_0;
+    }
+    state start_0 {
         transition select(bv_0) {
             false: next;
             true: accept;

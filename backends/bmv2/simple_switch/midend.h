@@ -21,12 +21,14 @@ limitations under the License.
 #include "frontends/common/options.h"
 #include "midend/convertEnums.h"
 #include "backends/bmv2/common/midend.h"
+#include "backends/bmv2/common/options.h"
 
 namespace BMV2 {
 
 class SimpleSwitchMidEnd : public MidEnd {
  public:
-    explicit SimpleSwitchMidEnd(CompilerOptions& options);
+    // If p4c is run with option '--listMidendPasses', outStream is used for printing passes names
+    explicit SimpleSwitchMidEnd(CompilerOptions& options, std::ostream* outStream = nullptr);
 };
 
 }  // namespace BMV2

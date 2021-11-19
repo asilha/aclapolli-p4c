@@ -16,7 +16,22 @@ enum class Direction {
     Out,
     InOut
 };
+
+inline cstring directionToString(IR::Direction direction) {
+    switch (direction) {
+        case IR::Direction::None:
+            return "<none>";
+        case IR::Direction::In:
+            return "in";
+        case IR::Direction::Out:
+            return "out";
+        case IR::Direction::InOut:
+            return "inout";
+        default:
+            BUG("Unhandled case");
+    }
 }
+}  // namespace IR
 
 inline std::ostream& operator<<(std::ostream &out, IR::Direction d) {
     switch (d) {
@@ -76,9 +91,9 @@ class Type_State : Type_Base {
     dbprint { out << "state"; }
 }
 
-/// Represents both bit<> and int<> types in P4 v1.1+
+/// Represents both bit<> and int<> types in P4-14 and P4-16
 class Type_Bits : Type_Base {
-    optional int size;
+    optional int size = 0;      // zero (only) for not-yet evaluated const expression
     NullOK optional Expression expression; // only used temporarily
     bool isSigned;
     static Type_Bits get(Util::SourceInfo si, int sz, bool isSigned = false);
@@ -91,8 +106,8 @@ class Type_Bits : Type_Base {
 }
 
 class Type_Varbits : Type_Base {
-    optional int         size;   // if zero it means "unknown"
-    NullOK optional Expression  expression;  // only used temporarily
+    optional int         size = 0;   // if zero it means "unknown"
+    NullOK optional Expression  expression = nullptr;  // only used temporarily
     static Type_Varbits get(Util::SourceInfo si, int size = 0);
     static Type_Varbits get();
     toString{ return cstring("varbit<") + Util::toString(size) + ">"; }
@@ -152,7 +167,7 @@ class Type_Var : Type_Declaration, ITypeVar {
     cstring getVarName() const override { return getName(); }
     int getDeclId() const override { return declid; }
     dbprint { out << name << "/" << getDeclId(); }
-    toString { return getName(); }
+    toString { return getName().toString(); }
 }
 
 /// Stands for the 'int' type: infinite precision constant
@@ -169,7 +184,11 @@ class Type_InfInt : Type, ITypeVar {
     dbprint { out << "int/" << declid; }
     toString { return "int"; }
     operator== { return declid == a.declid; }
-    const Type* getP4Type() const override { return nullptr; }
+    equiv {
+        (void)a;  // silence unused warning
+        return true; /* ignore declid */
+    }
+    const Type* getP4Type() const override { return this; }
 }
 
 class Type_Dontcare : Type_Base {
@@ -222,14 +241,28 @@ class StructField : Declaration, IAnnotated {
     Annotations getAnnotations() const override { return annotations; }
 }
 
-abstract Type_StructLike : Type_Declaration, ISimpleNamespace, IAnnotated {
-    optional Annotations                        annotations = Annotations::empty;
+abstract Type_StructLike : Type_Declaration, INestedNamespace, ISimpleNamespace, IAnnotated, IMayBeGenericType {
+    static const cstring minSizeInBits;
+    static const cstring minSizeInBytes;
+    optional Annotations annotations = Annotations::empty;
+    optional TypeParameters typeParameters = new TypeParameters();
     optional inline IndexedVector<StructField>  fields;
+    TypeParameters getTypeParameters() const override { return typeParameters; }
+    std::vector<INamespace> getNestedNamespaces() const override { return { typeParameters }; }
     Annotations getAnnotations() const override { return annotations; }
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
         return fields.getDeclarations(); }
     StructField getField(cstring name) const {
         return fields.getDeclaration<StructField>(name); }
+    int getFieldIndex(cstring name) const {
+        int index_pos = 0;
+        for (auto f : fields) {
+            if (f->name == name)
+                return index_pos;
+	    index_pos++;
+        }
+        return -1;
+    }
     int width_bits() const override {
         int rv = 0;
         for (auto f : fields) {
@@ -246,6 +279,13 @@ abstract Type_StructLike : Type_Declaration, ISimpleNamespace, IAnnotated {
 class Type_Struct : Type_StructLike {
 #nodbprint
     toString{ return cstring("struct ") + externalName(); }
+}
+
+/// This is the type of a struct-valued expression whose
+/// exact struct type is yet unknown; we only know the field names
+/// and some information about their types.
+class Type_UnknownStruct : Type_StructLike {
+#nodbprint
 }
 
 class Type_HeaderUnion : Type_StructLike {
@@ -278,36 +318,74 @@ class Type_Set : Type {
         return elementType->width_bits(); }
 }
 
-/// The type of an expressionList
-class Type_Tuple : Type {
+interface Type_Indexed {
+    // Probably this sohuld be called 'size()', but some subclasses already
+    // have a 'size' field.
+    virtual size_t getSize() const = 0;
+    Type at(size_t index) const;
+}
+
+/// Base class for Type_List and Type_Tuple
+abstract Type_BaseList : Type, Type_Indexed {
     optional inline Vector<Type> components;
-    toString{ return "Tuple(" + Util::toString(components.size()) + ")"; }
     validate{ components.check_null(); }
-    const Type* getP4Type() const override;
-    size_t size() const { return components.size(); }
+    size_t getSize() const override { return components.size(); }
+    Type at(size_t index) const { return components.at(index); }
     int width_bits() const override {
-        /// returning sum of the width of the tuple elements
+        /// returning sum of the width of the elements
         int rv = 0;
         for (auto f : components) {
             rv += f->width_bits();
         }
         return rv; }
+    toString{
+        std::string result = "tuple<";
+        bool first = true;
+        for (auto t : components) {
+            if (!first)
+                result += ", ";
+            first = false;
+            result += t->toString();
+        }
+        return result + ">";
+    }
+}
+
+/// The type of an expressionList; can be unified with both Type_Tuple and Type_Struct
+class Type_List : Type_BaseList {
+    // In error messages this is shown as if it is a Tuple
+    const Type* getP4Type() const override;
+}
+
+/// The type of a tuple.
+class Type_Tuple : Type_BaseList {
+    const Type* getP4Type() const override;
 }
 
 /// The type of an architectural block.
 /// Abstract base for Type_Control, Type_Parser and Type_Package
-abstract Type_ArchBlock : Type_Declaration, IMayBeGenericType, IAnnotated {
+abstract Type_ArchBlock : Type_Declaration, IMayBeGenericType, IAnnotated, ISimpleNamespace {
     optional Annotations annotations = Annotations::empty;
     optional TypeParameters typeParameters = new TypeParameters;
     Annotations getAnnotations() const override { return annotations; }
     TypeParameters getTypeParameters() const override { return typeParameters; }
+    Util::Enumerator<IDeclaration>* getDeclarations() const override {
+        return typeParameters->getDeclarations(); }
+    IDeclaration getDeclByName(cstring name) const override {
+        return typeParameters->getDeclByName(name); }
 }
 
-class Type_Package : Type_ArchBlock, IContainer {
+class Type_Package : Type_ArchBlock, IContainer, ISimpleNamespace {
     ParameterList constructorParams;
     Type_Method getConstructorMethodType() const override;
     ParameterList getConstructorParameters() const override { return constructorParams; }
     toString{ return cstring("package ") + externalName(); }
+    Util::Enumerator<IDeclaration>* getDeclarations() const override {
+        return typeParameters->getDeclarations()->concat(constructorParams->getDeclarations()); }
+    IDeclaration getDeclByName(cstring name) const override {
+        auto decl = constructorParams->getDeclByName(name);
+        if (!decl) decl = typeParameters->getDeclByName(name);
+        return decl; }
 }
 
 class Type_Parser : Type_ArchBlock, IApply {
@@ -337,13 +415,15 @@ class Type_Name : Type {
     }
 }
 
-class Type_Stack : Type {
+class Type_Stack : Type_Indexed, Type {
     Type        elementType;
     Expression  size;
-    toString{ return elementType->toString() + "[]"; }
+    toString{ return elementType->toString() + "[" +
+                (sizeKnown() ? Util::toString(getSize()) : "?") + "]"; }
     dbprint{ out << elementType << "[" << size << "]"; }
     bool sizeKnown() const;
-    unsigned getSize() const;
+    size_t getSize() const override;
+    Type at(size_t index) const;
     static const cstring next;
     static const cstring last;
     static const cstring arraySize;
@@ -418,7 +498,7 @@ class SerEnumMember : Declaration, CompileTimeValue {
 /** A serializable enumeration with a backing type */
 class Type_SerEnum : Type_Declaration, ISimpleNamespace, IAnnotated {
     optional Annotations annotations = Annotations::empty;
-    Type_Bits type;
+    Type type;
     inline IndexedVector<SerEnumMember> members;
     Annotations getAnnotations() const override { return annotations; }
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
@@ -436,6 +516,7 @@ class Type_Table : Type, IApply {
     /// names for the fields of the struct returned
     /// by applying a table
     static const ID hit;
+    static const ID miss;
     static const ID action_run;
     const IR::Type* getP4Type() const override { return nullptr; }
     dbprint { out << table->name; }
@@ -450,7 +531,7 @@ class Type_ActionEnum : Type {
     const IR::Type* getP4Type() const override { return nullptr; }
 }
 
-abstract Type_MethodBase : Type, IMayBeGenericType {
+abstract Type_MethodBase : Type, IMayBeGenericType, ISimpleNamespace {
     // we generally want type parameters visited first
     optional TypeParameters typeParameters = new TypeParameters();
     optional NullOK Type returnType = nullptr;
@@ -461,23 +542,22 @@ abstract Type_MethodBase : Type, IMayBeGenericType {
     size_t minParameterCount() const;
     virtual TypeParameters getTypeParameters() const override { return typeParameters; }
     void dbprint(std::ostream& out) const override;
-    toString {
-        cstring result = "";
-        if (returnType != nullptr)
-            result = returnType->toString();
-        result += " function";
-        result += typeParameters->toString();
-        result += "(";
-        result += parameters->toString();
-        result += ")";
-        return result;
-    }
+    toString { return "<Method>"; }
     const IR::Type* getP4Type() const override { return nullptr; }
+    Util::Enumerator<IDeclaration>* getDeclarations() const override {
+        return typeParameters->getDeclarations()->concat(parameters->getDeclarations()); }
+    IDeclaration getDeclByName(cstring name) const override {
+        auto decl = parameters->getDeclByName(name);
+        if (!decl) decl = typeParameters->getDeclByName(name);
+        return decl; }
 }
 
 /// Type for a method or function.
 class Type_Method : Type_MethodBase {
 #nodbprint
+    // The name is only used to give better error messages.
+    cstring name;
+    toString { return name; }
 }
 
 /// Describes an argument of a MethodCall
@@ -486,7 +566,8 @@ class ArgumentInfo {
     bool leftValue;
     bool compileTimeConstant;
     Type type;
-    ID   name;  // only present if using named arguments
+    Argument argument;
+    toString { return argument->toString(); }
 #nodbprint
 }
 
@@ -499,6 +580,7 @@ class Type_MethodCall : Type {
     Vector<ArgumentInfo> arguments;
     validate{ typeArguments->check_null(); arguments->check_null(); }
     const Type* getP4Type() const override { return nullptr; }
+    toString { return "<Method call>"; }
 }
 
 /// Actions look a lot like methods in many respects.
@@ -508,7 +590,7 @@ class Type_Action : Type_MethodBase {
 #nodbprint
 }
 
-class Method : Declaration, IAnnotated, IFunctional {
+class Method : Declaration, IAnnotated, IFunctional, ISimpleNamespace {
     Type_Method type;
     optional bool isAbstract = false;
     optional Annotations annotations = Annotations::empty;
@@ -517,6 +599,11 @@ class Method : Declaration, IAnnotated, IFunctional {
     void setAbstract() { isAbstract = true; }
     Annotations getAnnotations() const override { return annotations; }
     ParameterList getParameters() const override { return type->parameters; }
+    // annotations can refer to parameters, so need to look them up in scope
+    IDeclaration getDeclByName(cstring name) const override {
+        return type->parameters->getDeclByName(name); }
+    Util::Enumerator<IDeclaration> *getDeclarations() const override {
+        return type->parameters->getDeclarations(); }
 }
 
 class Type_Typedef : Type_Declaration, IAnnotated {
@@ -541,15 +628,17 @@ class Type_Newtype : Type_Declaration, IAnnotated {
 }
 
 /// An 'extern' black-box (not a function)
-class Type_Extern : Type_Declaration, IGeneralNamespace, IMayBeGenericType, IAnnotated {
+class Type_Extern : Type_Declaration, INestedNamespace, IGeneralNamespace,
+                    IMayBeGenericType, IAnnotated {
     optional TypeParameters typeParameters = new TypeParameters;
     optional inline Vector<Method> methods;  // methods can be overloaded, so this is not NameMap
     optional inline NameMap<Attribute, ordered_map> attributes;  // P4_14 only, currently
     optional Annotations annotations = Annotations::empty;
 
+    std::vector<INamespace> getNestedNamespaces() const override { return { typeParameters }; }
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
-        return methods.getEnumerator()->as<const IDeclaration*>()
-            ->concat(attributes.valueEnumerator()->as<const IDeclaration*>()); }
+        return attributes.valueEnumerator()->as<const IDeclaration*>()
+            ->concat(methods.getEnumerator()->as<const IDeclaration*>()); }
     virtual TypeParameters getTypeParameters() const override { return typeParameters; }
     validate{ methods.check_null(); }
     Annotations getAnnotations() const override { return annotations; }

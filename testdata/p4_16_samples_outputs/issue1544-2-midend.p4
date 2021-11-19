@@ -1,84 +1,87 @@
 control c(inout bit<32> x) {
-    bit<32> tmp_4;
-    bit<32> tmp_11;
-    bit<32> tmp_12;
-    @hidden action act() {
-        tmp_4 = x + 32w1;
+    @name("c.tmp") bit<32> tmp_1;
+    @name("c.tmp") bit<32> tmp_5;
+    @name("c.tmp") bit<32> tmp_6;
+    @hidden action issue15442l2() {
+        tmp_1 = x + 32w1;
     }
-    @hidden action act_0() {
-        tmp_4 = x;
+    @hidden action issue15442l2_0() {
+        tmp_1 = x;
     }
-    @hidden action act_1() {
-        tmp_11 = x + 32w4294967295;
+    @hidden action issue15442l2_1() {
+        tmp_5 = x + 32w4294967295;
     }
-    @hidden action act_2() {
-        tmp_11 = x;
+    @hidden action issue15442l2_2() {
+        tmp_5 = x;
     }
-    @hidden action act_3() {
-        tmp_12 = tmp_11;
+    @hidden action issue15442l2_3() {
+        tmp_6 = tmp_5;
     }
-    @hidden action act_4() {
-        tmp_12 = tmp_4;
+    @hidden action issue15442l2_4() {
+        tmp_6 = tmp_1;
     }
-    @hidden action act_5() {
-        x = tmp_12;
+    @hidden action issue15442l7() {
+        x = tmp_6;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue15442l2 {
         actions = {
-            act();
+            issue15442l2();
         }
-        const default_action = act();
+        const default_action = issue15442l2();
     }
-    @hidden table tbl_act_0 {
+    @hidden table tbl_issue15442l2_0 {
         actions = {
-            act_0();
+            issue15442l2_0();
         }
-        const default_action = act_0();
+        const default_action = issue15442l2_0();
     }
-    @hidden table tbl_act_1 {
+    @hidden table tbl_issue15442l2_1 {
         actions = {
-            act_1();
+            issue15442l2_1();
         }
-        const default_action = act_1();
+        const default_action = issue15442l2_1();
     }
-    @hidden table tbl_act_2 {
+    @hidden table tbl_issue15442l2_2 {
         actions = {
-            act_2();
+            issue15442l2_2();
         }
-        const default_action = act_2();
+        const default_action = issue15442l2_2();
     }
-    @hidden table tbl_act_3 {
+    @hidden table tbl_issue15442l2_3 {
         actions = {
-            act_3();
+            issue15442l2_3();
         }
-        const default_action = act_3();
+        const default_action = issue15442l2_3();
     }
-    @hidden table tbl_act_4 {
+    @hidden table tbl_issue15442l2_4 {
         actions = {
-            act_4();
+            issue15442l2_4();
         }
-        const default_action = act_4();
+        const default_action = issue15442l2_4();
     }
-    @hidden table tbl_act_5 {
+    @hidden table tbl_issue15442l7 {
         actions = {
-            act_5();
+            issue15442l7();
         }
-        const default_action = act_5();
+        const default_action = issue15442l7();
     }
     apply {
-        if (x > x + 32w1) 
-            tbl_act.apply();
-        else 
-            tbl_act_0.apply();
-        if (x > x + 32w4294967295) 
-            tbl_act_1.apply();
-        else 
-            tbl_act_2.apply();
-        if (tmp_4 > tmp_11) 
-            tbl_act_3.apply();
-        else 
-            tbl_act_4.apply();
-        tbl_act_5.apply();
+        if (x > x + 32w1) {
+            tbl_issue15442l2.apply();
+        } else {
+            tbl_issue15442l2_0.apply();
+        }
+        if (x > x + 32w4294967295) {
+            tbl_issue15442l2_1.apply();
+        } else {
+            tbl_issue15442l2_2.apply();
+        }
+        if (tmp_1 > tmp_5) {
+            tbl_issue15442l2_3.apply();
+        } else {
+            tbl_issue15442l2_4.apply();
+        }
+        tbl_issue15442l7.apply();
     }
 }
 

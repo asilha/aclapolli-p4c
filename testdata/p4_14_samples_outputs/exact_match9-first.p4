@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -57,8 +58,9 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         default_action = NoAction();
     }
     apply {
-        if (hdr.data.f2 != 32w0) 
+        if (hdr.data.f2 != 32w0) {
             test1.apply();
+        }
     }
 }
 

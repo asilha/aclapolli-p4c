@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header ethernet_t {
@@ -68,13 +69,13 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
     }
-    @name(".drop") action drop_1() {
+    @name(".drop") action drop() {
     }
-    @name(".forward") action forward(bit<48> to) {
+    @name(".forward") action forward(@name("to") bit<48> to) {
         hdr.ethernet.dstAddr = to;
         hdr.ipv4.ttl = hdr.ipv4.ttl + 8w255;
     }
@@ -82,7 +83,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name(".route") table route_0 {
         actions = {
-            drop_1();
+            drop();
             forward();
             @defaultonly NoAction_0();
         }
@@ -121,17 +122,17 @@ control DeparserImpl(packet_out packet, in headers hdr) {
 }
 
 struct tuple_0 {
-    bit<4>  field;
-    bit<4>  field_0;
-    bit<8>  field_1;
-    bit<16> field_2;
-    bit<16> field_3;
-    bit<3>  field_4;
-    bit<13> field_5;
-    bit<8>  field_6;
-    bit<8>  field_7;
-    bit<32> field_8;
-    bit<32> field_9;
+    bit<4>  f0;
+    bit<4>  f1;
+    bit<8>  f2;
+    bit<16> f3;
+    bit<16> f4;
+    bit<3>  f5;
+    bit<13> f6;
+    bit<8>  f7;
+    bit<8>  f8;
+    bit<32> f9;
+    bit<32> f10;
 }
 
 control verifyChecksum(inout headers hdr, inout metadata meta) {

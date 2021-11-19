@@ -94,7 +94,8 @@ void EBPFTable::emitKeyType(CodeBuilder* builder) {
             auto ebpfType = EBPFTypeFactory::instance->create(type);
             cstring fieldName = cstring("field") + Util::toString(fieldNumber);
             if (!ebpfType->is<IHasWidth>()) {
-                ::error("%1%: illegal type %2% for key field", c, type);
+                ::error(ErrorType::ERR_TYPE_ERROR,
+                        "%1%: illegal type %2% for key field", c, type);
                 return;
             }
             unsigned width = ebpfType->to<IHasWidth>()->widthInBits();
@@ -119,8 +120,10 @@ void EBPFTable::emitKeyType(CodeBuilder* builder) {
 
             auto mtdecl = program->refMap->getDeclaration(c->matchType->path, true);
             auto matchType = mtdecl->getNode()->to<IR::Declaration_ID>();
-            if (matchType->name.name != P4::P4CoreLibrary::instance.exactMatch.name)
-                ::error("Match of type %1% not supported", c->matchType);
+            if (matchType->name.name != P4::P4CoreLibrary::instance.exactMatch.name &&
+                matchType->name.name != P4::P4CoreLibrary::instance.lpmMatch.name)
+                ::error(ErrorType::ERR_UNSUPPORTED,
+                        "Match of type %1% not supported", c->matchType);
         }
     }
 
@@ -137,7 +140,7 @@ void EBPFTable::emitActionArguments(CodeBuilder* builder,
     for (auto p : *action->parameters->getEnumerator()) {
         builder->emitIndent();
         auto type = EBPFTypeFactory::instance->create(p->type);
-        type->declare(builder, p->name.name, false);
+        type->declare(builder, p->externalName(), false);
         builder->endOfStatement(true);
     }
 
@@ -205,63 +208,82 @@ void EBPFTable::emitInstance(CodeBuilder* builder) {
         auto impl = table->container->properties->getProperty(
             program->model.tableImplProperty.name);
         if (impl == nullptr) {
-            ::error("Table %1% does not have an %2% property",
+            ::error(ErrorType::ERR_EXPECTED, "Table %1% does not have an %2% property",
                     table->container, program->model.tableImplProperty.name);
             return;
         }
 
         // Some type checking...
         if (!impl->value->is<IR::ExpressionValue>()) {
-            ::error("%1%: Expected property to be an `extern` block", impl);
+            ::error(ErrorType::ERR_EXPECTED,
+                    "%1%: Expected property to be an `extern` block", impl);
             return;
         }
 
         auto expr = impl->value->to<IR::ExpressionValue>()->expression;
         if (!expr->is<IR::ConstructorCallExpression>()) {
-            ::error("%1%: Expected property to be an `extern` block", impl);
+            ::error(ErrorType::ERR_EXPECTED,
+                    "%1%: Expected property to be an `extern` block", impl);
             return;
         }
 
         auto block = table->getValue(expr);
         if (block == nullptr || !block->is<IR::ExternBlock>()) {
-            ::error("%1%: Expected property to be an `extern` block", impl);
+            ::error(ErrorType::ERR_EXPECTED,
+                    "%1%: Expected property to be an `extern` block", impl);
             return;
         }
 
-        bool isHash;
+        TableKind tableKind;
         auto extBlock = block->to<IR::ExternBlock>();
         if (extBlock->type->name.name == program->model.array_table.name) {
-            isHash = false;
+            tableKind = TableArray;
         } else if (extBlock->type->name.name == program->model.hash_table.name) {
-            isHash = true;
+            tableKind = TableHash;
         } else {
-            ::error("%1%: implementation must be one of %2% or %3%",
+            ::error(ErrorType::ERR_EXPECTED,
+                    "%1%: implementation must be one of %2% or %3%",
                     impl, program->model.array_table.name, program->model.hash_table.name);
             return;
         }
 
+        // If any key field is LPM we will generate an LPM table
+        for (auto it : keyGenerator->keyElements) {
+            auto mtdecl = program->refMap->getDeclaration(it->matchType->path, true);
+            auto matchType = mtdecl->getNode()->to<IR::Declaration_ID>();
+            if (matchType->name.name == P4::P4CoreLibrary::instance.lpmMatch.name) {
+                if (tableKind == TableLPMTrie) {
+                    ::error(ErrorType::ERR_UNSUPPORTED,
+                            "%1%: only one LPM field allowed", it->matchType);
+                    return;
+                }
+                tableKind = TableLPMTrie;
+            }
+        }
+
         auto sz = extBlock->getParameterValue(program->model.array_table.size.name);
         if (sz == nullptr || !sz->is<IR::Constant>()) {
-            ::error("Expected an integer argument for %1%; is the model corrupted?", expr);
+            ::error(ErrorType::ERR_UNSUPPORTED,
+                    "%1%: Expected an integer argument; is the model corrupted?", expr);
             return;
         }
         auto cst = sz->to<IR::Constant>();
         if (!cst->fitsInt()) {
-            ::error("%1%: size too large", cst);
+            ::error(ErrorType::ERR_UNSUPPORTED, "%1%: size too large", cst);
             return;
         }
         int size = cst->asInt();
         if (size <= 0) {
-            ::error("%1%: negative size", cst);
+            ::error(ErrorType::ERR_INVALID, "%1%: negative size", cst);
             return;
         }
 
         cstring name = EBPFObject::externalName(table->container);
-        builder->target->emitTableDecl(builder, name, isHash,
+        builder->target->emitTableDecl(builder, name, tableKind,
                                        cstring("struct ") + keyTypeName,
                                        cstring("struct ") + valueTypeName, size);
     }
-    builder->target->emitTableDecl(builder, defaultActionMapName, false,
+    builder->target->emitTableDecl(builder, defaultActionMapName, TableArray,
                                    program->arrayIndexType,
                                    cstring("struct ") + valueTypeName, 1);
 }
@@ -471,24 +493,26 @@ EBPFCounterTable::EBPFCounterTable(const EBPFProgram* program, const IR::ExternB
         EBPFTableBase(program, name, codeGen) {
     auto sz = block->getParameterValue(program->model.counterArray.max_index.name);
     if (sz == nullptr || !sz->is<IR::Constant>()) {
-        ::error("Expected an integer argument for parameter %1% or %2%; is the model corrupted?",
+        ::error(ErrorType::ERR_INVALID,
+                "%1% (%2%): expected an integer argument; is the model corrupted?",
                 program->model.counterArray.max_index, name);
         return;
     }
     auto cst = sz->to<IR::Constant>();
     if (!cst->fitsInt()) {
-        ::error("%1%: size too large", cst);
+        ::error(ErrorType::ERR_OVERLIMIT, "%1%: size too large", cst);
         return;
     }
     size = cst->asInt();
     if (size <= 0) {
-        ::error("%1%: negative size", cst);
+        ::error(ErrorType::ERR_OVERLIMIT, "%1%: negative size", cst);
         return;
     }
 
     auto sprs = block->getParameterValue(program->model.counterArray.sparse.name);
     if (sprs == nullptr || !sprs->is<IR::BoolLiteral>()) {
-        ::error("Expected an integer argument for parameter %1% or %2%; is the model corrupted?",
+        ::error(ErrorType::ERR_INVALID,
+                "%1% (%2%): Expected an integer argument; is the model corrupted?",
                 program->model.counterArray.sparse, name);
         return;
     }
@@ -497,8 +521,9 @@ EBPFCounterTable::EBPFCounterTable(const EBPFProgram* program, const IR::ExternB
 }
 
 void EBPFCounterTable::emitInstance(CodeBuilder* builder) {
+    TableKind kind = isHash ? TableHash : TableArray;
     builder->target->emitTableDecl(
-        builder, dataMapName, isHash, keyTypeName, valueTypeName, size);
+        builder, dataMapName, kind, keyTypeName, valueTypeName, size);
 }
 
 void EBPFCounterTable::emitCounterIncrement(CodeBuilder* builder,
@@ -552,13 +577,81 @@ void EBPFCounterTable::emitCounterIncrement(CodeBuilder* builder,
     builder->decreaseIndent();
 }
 
+void EBPFCounterTable::emitCounterAdd(CodeBuilder* builder,
+                                            const IR::MethodCallExpression *expression) {
+    cstring keyName = program->refMap->newName("key");
+    cstring valueName = program->refMap->newName("value");
+    cstring incName = program->refMap->newName("inc");
+
+    builder->emitIndent();
+    builder->append(valueTypeName);
+    builder->spc();
+    builder->append("*");
+    builder->append(valueName);
+    builder->endOfStatement(true);
+
+    builder->emitIndent();
+    builder->append(valueTypeName);
+    builder->spc();
+    builder->appendLine("init_val = 1;");
+
+    builder->emitIndent();
+    builder->append(keyTypeName);
+    builder->spc();
+    builder->append(keyName);
+    builder->append(" = ");
+
+    BUG_CHECK(expression->arguments->size() == 2, "Expected just 2 arguments for %1%", expression);
+    auto index = expression->arguments->at(0);
+
+    codeGen->visit(index);
+    builder->endOfStatement(true);
+
+    builder->emitIndent();
+    builder->append(valueTypeName);
+    builder->spc();
+    builder->append(incName);
+    builder->append(" = ");
+
+    auto inc = expression->arguments->at(1);
+
+    codeGen->visit(inc);
+    builder->endOfStatement(true);
+
+    builder->emitIndent();
+    builder->target->emitTableLookup(builder, dataMapName, keyName, valueName);
+    builder->endOfStatement(true);
+
+    builder->emitIndent();
+    builder->appendFormat("if (%s != NULL)", valueName.c_str());
+    builder->newline();
+    builder->increaseIndent();
+    builder->emitIndent();
+    builder->appendFormat("__sync_fetch_and_add(%s, %s);", valueName.c_str(), incName.c_str());
+    builder->newline();
+    builder->decreaseIndent();
+
+    builder->emitIndent();
+    builder->appendLine("else");
+    builder->increaseIndent();
+    builder->emitIndent();
+    builder->target->emitTableUpdate(builder, dataMapName, keyName, "init_val");
+    builder->newline();
+    builder->decreaseIndent();
+}
+
 void
 EBPFCounterTable::emitMethodInvocation(CodeBuilder* builder, const P4::ExternMethod* method) {
     if (method->method->name.name == program->model.counterArray.increment.name) {
         emitCounterIncrement(builder, method->expr);
         return;
     }
-    ::error("%1%: Unexpected method for %2%", method->expr, program->model.counterArray.name);
+    if (method->method->name.name == program->model.counterArray.add.name) {
+        emitCounterAdd(builder, method->expr);
+        return;
+    }
+    ::error(ErrorType::ERR_UNSUPPORTED,
+            "Unexpected method %1% for %2%", method->expr, program->model.counterArray.name);
 }
 
 void EBPFCounterTable::emitTypes(CodeBuilder* builder) {

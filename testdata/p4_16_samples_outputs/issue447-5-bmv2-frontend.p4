@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header S {
@@ -35,7 +36,7 @@ control DeparserI(packet_out packet, in Parsed_packet hdr) {
 }
 
 control ingress(inout Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
-    varbit<32> s_0;
+    @name("ingress.s") varbit<32> s_0;
     apply {
         s_0 = hdr.h1.var;
         hdr.h1.var = hdr.h2.var;

@@ -46,8 +46,10 @@ class CodeGenInspector : public Inspector {
     std::map<const IR::Parameter*, const IR::Parameter*> substitution;
 
  public:
+    int expressionPrecedence;  /// precedence of current IR::Operation
     CodeGenInspector(P4::ReferenceMap* refMap, P4::TypeMap* typeMap) :
-            builder(nullptr), refMap(refMap), typeMap(typeMap) {
+        builder(nullptr), refMap(refMap), typeMap(typeMap),
+        expressionPrecedence(DBPrint::Prec_Low) {
         CHECK_NULL(refMap); CHECK_NULL(typeMap);
         visitDagOnce = false;
     }
@@ -64,7 +66,8 @@ class CodeGenInspector : public Inspector {
     }
 
     bool notSupported(const IR::Expression* expression)
-    { ::error("%1%: not yet implemented", expression); return false; }
+    { ::error(ErrorType::ERR_UNSUPPORTED,
+              "%1%: not yet implemented", expression); return false; }
 
     bool preorder(const IR::Expression* expression) override
     { return notSupported(expression); }

@@ -20,23 +20,31 @@ namespace P4 {
 
 ParseAnnotations::HandlerMap ParseAnnotations::standardHandlers() {
     return {
-            // @tableonly, @defaultonly, @hidden, @atomic, and @optional have
-            // empty bodies.
+            // These annotations have empty bodies.
             PARSE_EMPTY(IR::Annotation::tableOnlyAnnotation),
             PARSE_EMPTY(IR::Annotation::defaultOnlyAnnotation),
             PARSE_EMPTY(IR::Annotation::hiddenAnnotation),
             PARSE_EMPTY(IR::Annotation::atomicAnnotation),
             PARSE_EMPTY(IR::Annotation::optionalAnnotation),
+            PARSE_EMPTY(IR::Annotation::pureAnnotation),
+            PARSE_EMPTY(IR::Annotation::noSideEffectsAnnotation),
 
-            // @name and @deprecated have a string literal argument.
+            // string literal argument.
             PARSE(IR::Annotation::nameAnnotation, StringLiteral),
             PARSE(IR::Annotation::deprecatedAnnotation, StringLiteral),
+            PARSE(IR::Annotation::noWarnAnnotation, StringLiteral),
 
             // @length has an expression argument.
             PARSE(IR::Annotation::lengthAnnotation, Expression),
 
             // @pkginfo has a key-value list argument.
-            PARSE_KV_LIST(IR::Annotation::pkginfoAnnotation)
+            PARSE_KV_LIST(IR::Annotation::pkginfoAnnotation),
+
+            // @synchronous has a list of method names
+            PARSE_EXPRESSION_LIST(IR::Annotation::synchronousAnnotation),
+
+            // @match has an expression argument
+            PARSE(IR::Annotation::matchAnnotation, Expression),
         };
 }
 
@@ -46,7 +54,8 @@ bool ParseAnnotations::parseSkip(IR::Annotation*) {
 
 bool ParseAnnotations::parseEmpty(IR::Annotation* annotation) {
     if (!annotation->body.empty()) {
-        ::error("%1% should not have any arguments", annotation);
+        ::error(ErrorType::ERR_OVERLIMIT,
+                "%1% should not have any arguments", annotation);
         return false;
     }
 
@@ -75,6 +84,50 @@ bool ParseAnnotations::parseKvList(IR::Annotation* annotation) {
     return parsed != nullptr;
 }
 
+bool ParseAnnotations::parseConstantList(IR::Annotation* annotation) {
+    const IR::Vector<IR::Expression>* parsed =
+        P4::P4ParserDriver::parseConstantList(annotation->srcInfo,
+                                              annotation->body);
+    if (parsed != nullptr) {
+        annotation->expr.append(*parsed);
+    }
+
+    return parsed != nullptr;
+}
+
+bool ParseAnnotations::parseConstantOrStringLiteralList(IR::Annotation* annotation) {
+    const IR::Vector<IR::Expression>* parsed =
+        P4::P4ParserDriver::parseConstantOrStringLiteralList(annotation->srcInfo,
+                                                             annotation->body);
+    if (parsed != nullptr) {
+        annotation->expr.append(*parsed);
+    }
+
+    return parsed != nullptr;
+}
+
+bool ParseAnnotations::parseStringLiteralList(IR::Annotation* annotation) {
+    const IR::Vector<IR::Expression>* parsed =
+        P4::P4ParserDriver::parseStringLiteralList(annotation->srcInfo,
+                                                   annotation->body);
+    if (parsed != nullptr) {
+        annotation->expr.append(*parsed);
+    }
+
+    return parsed != nullptr;
+}
+
+bool ParseAnnotations::parseP4rtTranslationAnnotation(
+        IR::Annotation* annotation) {
+    const IR::Vector<IR::Expression>* parsed =
+        P4::P4ParserDriver::parseP4rtTranslationAnnotation(annotation->srcInfo,
+                                                         annotation->body);
+    if (parsed != nullptr) {
+        annotation->expr.append(*parsed);
+    }
+    return parsed != nullptr;
+}
+
 void ParseAnnotations::postorder(IR::Annotation* annotation) {
     if (!annotation->needsParsing) {
         return;
@@ -90,7 +143,7 @@ void ParseAnnotations::postorder(IR::Annotation* annotation) {
         // Unknown annotation. Leave as is, but warn if desired.
         if (warnUnknown && warned.count(name) == 0) {
             warned.insert(name);
-            ::warning("Unknown annotation: %1%", annotation->name);
+            ::warning(ErrorType::WARN_UNKNOWN, "Unknown annotation: %1%", annotation->name);
         }
         return;
     }

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -22,8 +23,10 @@ header vlan_tag_t {
 }
 
 struct metadata {
-    @name(".ingress_metadata") 
-    ingress_metadata_t ingress_metadata;
+    bit<9>  _ingress_metadata_ingress_port0;
+    bit<14> _ingress_metadata_bd1;
+    bit<14> _ingress_metadata_rid2;
+    bit<1>  _ingress_metadata_drop_flag3;
 }
 
 struct headers {
@@ -61,24 +64,23 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    bool _process_port_vlan_mapping_tmp;
     @name(".no_op") action _no_op_0() {
     }
     @name(".no_op") action _no_op_2() {
     }
-    @name(".set_bd_properties") action _set_bd_properties_0(bit<14> bd, bit<14> ingress_rid) {
-        meta.ingress_metadata.bd = bd;
-        meta.ingress_metadata.rid = ingress_rid;
+    @name(".set_bd_properties") action _set_bd_properties_0(@name("bd") bit<14> bd_1, @name("ingress_rid") bit<14> ingress_rid) {
+        meta._ingress_metadata_bd1 = bd_1;
+        meta._ingress_metadata_rid2 = ingress_rid;
     }
-    @name(".set_bd_properties") action _set_bd_properties_2(bit<14> bd, bit<14> ingress_rid) {
-        meta.ingress_metadata.bd = bd;
-        meta.ingress_metadata.rid = ingress_rid;
+    @name(".set_bd_properties") action _set_bd_properties_2(@name("bd") bit<14> bd_2, @name("ingress_rid") bit<14> ingress_rid_1) {
+        meta._ingress_metadata_bd1 = bd_2;
+        meta._ingress_metadata_rid2 = ingress_rid_1;
     }
     @name(".port_vlan_mapping_miss") action _port_vlan_mapping_miss_0() {
-        meta.ingress_metadata.drop_flag = 1w1;
+        meta._ingress_metadata_drop_flag3 = 1w1;
     }
     @name(".port_vlan_mapping_miss") action _port_vlan_mapping_miss_2() {
-        meta.ingress_metadata.drop_flag = 1w1;
+        meta._ingress_metadata_drop_flag3 = 1w1;
     }
     @name(".port_vlan_to_bd_mapping") table _port_vlan_to_bd_mapping {
         actions = {
@@ -107,33 +109,12 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         const default_action = _no_op_2();
         implementation = bd_action_profile;
     }
-    @hidden action act() {
-        _process_port_vlan_mapping_tmp = true;
-    }
-    @hidden action act_0() {
-        _process_port_vlan_mapping_tmp = false;
-    }
-    @hidden table tbl_act {
-        actions = {
-            act();
-        }
-        const default_action = act();
-    }
-    @hidden table tbl_act_0 {
-        actions = {
-            act_0();
-        }
-        const default_action = act_0();
-    }
     apply {
-        if (_port_vlan_to_bd_mapping.apply().hit) 
-            tbl_act.apply();
-        else 
-            tbl_act_0.apply();
-        if (_process_port_vlan_mapping_tmp) 
+        if (_port_vlan_to_bd_mapping.apply().hit) {
             ;
-        else 
+        } else {
             _vlan_to_bd_mapping.apply();
+        }
     }
 }
 

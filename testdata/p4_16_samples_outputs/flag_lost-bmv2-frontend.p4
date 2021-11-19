@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<9> egressSpec_t;
@@ -54,15 +55,15 @@ control verifyChecksum(inout headers hdr, inout metadata meta) {
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name("ingress.drop") action drop_1() {
-        mark_to_drop();
+    @name("ingress.drop") action drop() {
+        mark_to_drop(standard_metadata);
     }
-    @name("ingress.drop") action drop_3() {
-        mark_to_drop();
+    @name("ingress.drop") action drop_2() {
+        mark_to_drop(standard_metadata);
     }
-    @name("ingress.ipv4_forward") action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
+    @name("ingress.ipv4_forward") action ipv4_forward(@name("dstAddr") macAddr_t dstAddr_1, @name("port") egressSpec_t port) {
         meta.test_bool = true;
     }
     @name("ingress.ipv4_lpm") table ipv4_lpm_0 {
@@ -72,17 +73,19 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         actions = {
             NoAction_0();
             ipv4_forward();
-            drop_1();
+            drop();
         }
         size = 1024;
         default_action = NoAction_0();
     }
     apply {
         meta.test_bool = false;
-        if (hdr.ipv4.isValid()) 
+        if (hdr.ipv4.isValid()) {
             ipv4_lpm_0.apply();
-        if (!meta.test_bool) 
-            drop_3();
+        }
+        if (!meta.test_bool) {
+            drop_2();
+        }
     }
 }
 

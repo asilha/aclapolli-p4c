@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct alt_t {
@@ -43,7 +44,7 @@ control deparser(packet_out b, in parsed_packet_t hdr) {
     }
 }
 
-control verify_checksum(inout parsed_packet_t hdr, inout local_metadata_t local_metadata) {
+control verifyChecksum(inout parsed_packet_t hdr, inout local_metadata_t local_metadata) {
     apply {
     }
 }
@@ -53,5 +54,5 @@ control compute_checksum(inout parsed_packet_t hdr, inout local_metadata_t local
     }
 }
 
-V1Switch<parsed_packet_t, local_metadata_t>(parse(), verify_checksum(), ingress(), egress(), compute_checksum(), deparser()) main;
+V1Switch<parsed_packet_t, local_metadata_t>(parse(), verifyChecksum(), ingress(), egress(), compute_checksum(), deparser()) main;
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # Copyright 2013-present Barefoot Networks, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,7 @@
 
 # Runs the compiler on a sample P4 V1.2 program
 
-from __future__ import print_function
+
 from subprocess import Popen,PIPE
 from threading import Thread
 import errno
@@ -43,6 +43,7 @@ class Options(object):
         self.dumpToJson = False
         self.compilerOptions = []
         self.runDebugger = False
+        self.runDebugger_skip = 0
         self.generateP4Runtime = False
 
 def usage(options):
@@ -117,8 +118,9 @@ def run_timeout(options, args, timeout, stderr):
 
 timeout = 10 * 60
 
-def compare_files(options, produced, expected):
-    if options.replace:
+def compare_files(options, produced, expected, ignore_case):
+    # p4info files should not change
+    if options.replace and "p4info" not in produced:
         if options.verbose:
             print("Saving new version of ", expected)
         shutil.copy2(produced, expected)
@@ -127,7 +129,10 @@ def compare_files(options, produced, expected):
     if options.verbose:
         print("Comparing", expected, "and", produced)
 
-    cmd = ("diff -B -u -w " + expected + " " + produced + " >&2")
+    args = "-B -u -w";
+    if ignore_case:
+        args = args + " -i";
+    cmd = ("diff " + args + " " + expected + " " + produced + " >&2")
     if options.verbose:
         print(cmd)
     exitcode = subprocess.call(cmd, shell=True);
@@ -141,18 +146,22 @@ def recompile_file(options, produced, mustBeIdentical):
     secondFile = produced + "-x";
     args = ["./p4test", "-I.", "--pp", secondFile, "--std", "p4-16", produced] + \
             options.compilerOptions
+    if options.runDebugger:
+        if options.runDebugger_skip > 0:
+            options.runDebugger_skip = options.runDebugger_skip - 1
+        else:
+            args[0:0] = options.runDebugger.split()
+            os.execvp(args[0], args)
     result = run_timeout(options, args, timeout, None)
     if result != SUCCESS:
         return result
     if mustBeIdentical:
-        result = compare_files(options, produced, secondFile)
+        result = compare_files(options, produced, secondFile, false)
     return result
 
 def check_generated_files(options, tmpdir, expecteddir):
     files = os.listdir(tmpdir)
     for file in files:
-        if "p4info" in file:
-            continue
         if options.verbose:
             print("Checking", file)
         produced = tmpdir + "/" + file
@@ -162,7 +171,7 @@ def check_generated_files(options, tmpdir, expecteddir):
                 print("Expected file does not exist; creating", expected)
             shutil.copy2(produced, expected)
         else:
-            result = compare_files(options, produced, expected)
+            result = compare_files(options, produced, expected, file[-7:] == "-stderr")
             if result != SUCCESS and (file[-7:] != "-stderr" or not ignoreStderr(options)):
                 return result
     return SUCCESS
@@ -177,6 +186,11 @@ def process_file(options, argv):
     basename = os.path.basename(options.p4filename)
     base, ext = os.path.splitext(basename)
     dirname = os.path.dirname(options.p4filename)
+    loops_unrolling = False
+    for option in options.compilerOptions:
+        if option == "--loopsUnroll":
+            loops_unrolling = True
+            break
     if "_samples/" in dirname:
         expected_dirname = dirname.replace("_samples/", "_samples_outputs/", 1)
     elif "_errors/" in dirname:
@@ -185,7 +199,9 @@ def process_file(options, argv):
         expected_dirname = dirname.replace("p4_14/", "p4_14_outputs/", 1)
     elif "p4_16/" in dirname:
         expected_dirname = dirname.replace("p4_16/", "p4_16_outputs/", 1)
-    else:
+    elif loops_unrolling:
+        expected_dirname = dirname + "_outputs/parser-unroll"
+    else:    
         expected_dirname = dirname + "_outputs"  # expected outputs are here
     if not os.path.exists(expected_dirname):
         os.makedirs(expected_dirname)
@@ -198,9 +214,10 @@ def process_file(options, argv):
     if options.verbose:
         print("Writing temporary files into ", tmpdir)
     ppfile = tmpdir + "/" + basename                  # after parsing
-    referenceOutputs = ",".join(rename.keys())
+    referenceOutputs = ",".join(list(rename.keys()))
     stderr = tmpdir + "/" + basename + "-stderr"
-    p4runtimefile = tmpdir + "/" + basename + ".p4info.txt"
+    p4runtimeFile = tmpdir + "/" + basename + ".p4info.txt"
+    p4runtimeEntriesFile = tmpdir + "/" + basename + ".entries.txt"
 
     # Create the `json_outputs` directory if it doesn't already exist. There's a
     # race here since multiple tests may run this code in parallel, so we can't
@@ -220,12 +237,15 @@ def process_file(options, argv):
     def getArch(path):
         v1Pattern = re.compile('include.*v1model\.p4')
         psaPattern = re.compile('include.*psa\.p4')
-        with open(path, 'r') as f:
+        ubpfPattern = re.compile('include.*ubpf_model\.p4')
+        with open(path, 'r', encoding='utf-8') as f:
             for line in f:
                 if v1Pattern.search(line):
                     return "v1model"
                 elif psaPattern.search(line):
                     return "psa"
+                elif ubpfPattern.search(line):
+                    return "ubpf"
             return None
 
     if not os.path.isfile(options.p4filename):
@@ -236,22 +256,25 @@ def process_file(options, argv):
     if arch is not None:
         args.extend(["--arch", arch])
         if options.generateP4Runtime:
-            args.extend(["--p4runtime-format", "text"])
-            args.extend(["--p4runtime-file", p4runtimefile])
+            args.extend(["--p4runtime-files", p4runtimeFile])
+            args.extend(["--p4runtime-entries-files", p4runtimeEntriesFile])
 
     if "p4_14" in options.p4filename or "v1_samples" in options.p4filename:
         args.extend(["--std", "p4-14"]);
     args.extend(argv)
     if options.runDebugger:
-        args[0:0] = options.runDebugger.split()
-        os.execvp(args[0], args)
+        if options.runDebugger_skip > 0:
+            options.runDebugger_skip = options.runDebugger_skip - 1
+        else:
+            args[0:0] = options.runDebugger.split()
+            os.execvp(args[0], args)
     result = run_timeout(options, args, timeout, stderr)
 
     if result != SUCCESS:
         print("Error compiling")
-        print("".join(open(stderr).readlines()))
+        print(open(stderr).read())
         # If the compiler crashed fail the test
-        if 'Compiler Bug' in open(stderr).readlines():
+        if 'Compiler Bug' in open(stderr).read():
             return FAILURE
 
     expected_error = isError(options.p4filename)
@@ -280,7 +303,7 @@ def process_file(options, argv):
         result = check_generated_files(options, tmpdir, expected_dirname);
     if (result == SUCCESS) and (not expected_error):
         result = recompile_file(options, ppfile, False)
-    if (result == SUCCESS) and (not expected_error) and (lastFile is not None):
+    if (result == SUCCESS) and (not expected_error) and (lastFile is not None) and (arch is not "psa"):
         # Unfortunately compilation and pretty-printing of lastFile is
         # not idempotent: For example a constant such as 8s128 is
         # converted by the compiler to -8s128.
@@ -334,8 +357,10 @@ def main(argv):
                 argv = argv[1:]
         elif argv[0][1] == 'D' or argv[0][1] == 'I' or argv[0][1] == 'T':
             options.compilerOptions.append(argv[0])
-        elif argv[0] == "-gdb":
+        elif argv[0][0:4] == "-gdb":
             options.runDebugger = "gdb --args"
+            if len(argv[0]) > 4:
+                options.runDebugger_skip = int(argv[0][4:]) - 1
         elif argv[0] == "--p4runtime":
             options.generateP4Runtime = True
         else:

@@ -13,10 +13,13 @@
 # limitations under the License.
 
 set (LIBP4CTOOLKIT_SRCS
+	backtrace.cpp
 	bitvec.cpp
 	compile_context.cpp
 	crash.cpp
 	cstring.cpp
+        error_catalog.cpp
+        exename.cpp
 	gc.cpp
 	gmputil.cpp
 	hash.cpp
@@ -43,8 +46,11 @@ set (LIBP4CTOOLKIT_HDRS
 	cstring.h
 	enumerator.h
 	error.h
+        error_catalog.h
+        error_helper.h
 	error_reporter.h
 	exceptions.h
+        exename.h
 	gc.h
 	gmputil.h
 	hash.h

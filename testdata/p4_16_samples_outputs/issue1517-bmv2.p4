@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header ethernet_t {
@@ -29,7 +30,7 @@ control ingress(inout headers_t hdr, inout meta_t meta, inout standard_metadata_
         bit<16> rand_int;
         random<bit<16>>(rand_int, 0, 48 * 1024 - 1);
         if (rand_int < 32 * 1024) {
-            mark_to_drop();
+            mark_to_drop(standard_metadata);
         }
     }
 }

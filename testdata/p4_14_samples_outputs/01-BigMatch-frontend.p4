@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -43,7 +44,7 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
     @name(".nop") action nop() {
     }
@@ -63,13 +64,13 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_1() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_7() {
+    @noWarn("unused") @name(".NoAction") action NoAction_7() {
     }
-    @name(".NoAction") action NoAction_8() {
+    @noWarn("unused") @name(".NoAction") action NoAction_8() {
     }
-    @name(".NoAction") action NoAction_9() {
+    @noWarn("unused") @name(".NoAction") action NoAction_9() {
     }
     @name(".nop") action nop_2() {
     }
@@ -79,17 +80,17 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name(".nop") action nop_8() {
     }
-    @name(".set_f1") action set_f1(bit<1024> f1) {
-        meta.ing_metadata.f1 = f1;
+    @name(".set_f1") action set_f1(@name("f1") bit<1024> f1_1) {
+        meta.ing_metadata.f1 = f1_1;
     }
-    @name(".set_f2") action set_f2(bit<512> f2) {
-        meta.ing_metadata.f2 = f2;
+    @name(".set_f2") action set_f2(@name("f2") bit<512> f2_1) {
+        meta.ing_metadata.f2 = f2_1;
     }
-    @name(".set_f3") action set_f3(bit<256> f3) {
-        meta.ing_metadata.f3 = f3;
+    @name(".set_f3") action set_f3(@name("f3") bit<256> f3_1) {
+        meta.ing_metadata.f3 = f3_1;
     }
-    @name(".set_f4") action set_f4(bit<128> f4) {
-        meta.ing_metadata.f4 = f4;
+    @name(".set_f4") action set_f4(@name("f4") bit<128> f4_1) {
+        meta.ing_metadata.f4 = f4_1;
     }
     @name(".i_t1") table i_t1_0 {
         actions = {

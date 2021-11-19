@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header h1_t {
@@ -23,11 +24,11 @@ parser parserI(packet_in pkt, out headers hdr, inout metadata meta, inout standa
 
 control cDoOneOp(inout headers hdr, in bit<8> op) {
     apply {
-        if (op == 8w0x0) 
+        if (op == 8w0x0) {
             ;
-        else 
-            if (op[7:4] == 4w1) 
-                hdr.h1.out1 = 8w4;
+        } else if (op[7:4] == 4w1) {
+            hdr.h1.out1 = 8w4;
+        }
     }
 }
 

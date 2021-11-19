@@ -67,6 +67,8 @@ class RemoveComplexExpressionsPolicy {
 BMv2 does not support complex expressions for a select
 or as arguments to external functions.
 Such expressions are lifted into a temporaries.
+Also, convert a statement like lookahead<T>() into
+tmp = lookahead<T>();
 */
 class RemoveComplexExpressions : public Transform {
     P4::ReferenceMap* refMap;
@@ -83,6 +85,8 @@ class RemoveComplexExpressions : public Transform {
         const IR::Vector<IR::Argument>* vec);
     const IR::IndexedVector<IR::NamedExpression>* simplifyExpressions(
         const IR::IndexedVector<IR::NamedExpression>* vec);
+
+    const IR::Node* simpleStatement(IR::Statement* statement);
 
  public:
     RemoveComplexExpressions(P4::ReferenceMap* refMap, P4::TypeMap* typeMap,
@@ -101,7 +105,11 @@ class RemoveComplexExpressions : public Transform {
     const IR::Node* preorder(IR::P4Parser* parser) override
     { newDecls.clear(); return parser; }
     const IR::Node* postorder(IR::P4Parser* parser) override {
-        parser->parserLocals.append(newDecls);
+        if (newDecls.size() != 0) {
+            // prepend declarations
+            newDecls.append(parser->parserLocals);
+            parser->parserLocals = newDecls;
+        }
         return parser;
     }
     const IR::Node* preorder(IR::P4Control* control) override;
@@ -114,6 +122,7 @@ class RemoveComplexExpressions : public Transform {
         return control;
     }
     const IR::Node* postorder(IR::Statement* statement) override;
+    const IR::Node* postorder(IR::MethodCallStatement* statement) override;
 };
 
 }  // namespace BMV2

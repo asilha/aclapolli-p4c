@@ -11,18 +11,18 @@ parser prs(packet_in p, out Headers_t headers) {
 }
 
 control pipe(inout Headers_t headers, out bool pass) {
-    bool x_0;
+    @name("pipe.x") bool x_0;
     @name("pipe.Reject") action Reject() {
         pass = x_0;
     }
-    @hidden action act() {
+    @hidden action action_call_ebpf34() {
         x_0 = true;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_action_call_ebpf34 {
         actions = {
-            act();
+            action_call_ebpf34();
         }
-        const default_action = act();
+        const default_action = action_call_ebpf34();
     }
     @hidden table tbl_Reject {
         actions = {
@@ -31,7 +31,7 @@ control pipe(inout Headers_t headers, out bool pass) {
         const default_action = Reject();
     }
     apply {
-        tbl_act.apply();
+        tbl_action_call_ebpf34.apply();
         tbl_Reject.apply();
     }
 }

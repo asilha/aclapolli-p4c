@@ -25,7 +25,7 @@ const IR::Expression* RemoveComplexComparisons::explode(
 
     // we allow several cases
     // header == header
-    // header == list (tuple)
+    // header == list
     // list == header
     // list == list
     // struct == struct
@@ -33,8 +33,8 @@ const IR::Expression* RemoveComplexComparisons::explode(
     // struct == list
     // list == struct
 
-    auto rightTuple = rightType->to<IR::Type_Tuple>();
-    auto leftTuple = leftType->to<IR::Type_Tuple>();
+    auto rightTuple = rightType->to<IR::Type_BaseList>();
+    auto leftTuple = leftType->to<IR::Type_BaseList>();
     if (leftTuple && !rightTuple)
         // put the tuple on the right if it is the only one,
         // so we handle fewer cases
@@ -42,13 +42,23 @@ const IR::Expression* RemoveComplexComparisons::explode(
 
     if (auto ht = leftType->to<IR::Type_Header>()) {
         auto lmethod = new IR::Member(left, IR::Type_Header::isValid);
-        auto lvalid = new IR::MethodCallExpression(srcInfo, lmethod);
+        const IR::Expression* lvalid;
+        if (left->is<IR::StructExpression>()) {
+            // A header defined this way is always valid
+            lvalid = new IR::BoolLiteral(true);
+        } else {
+            lvalid = new IR::MethodCallExpression(srcInfo, lmethod);
+        }
         auto linvalid = new IR::LNot(srcInfo, lvalid);
 
         const IR::Expression* rvalid;
         if (!rightTuple) {
-            auto rmethod = new IR::Member(right, IR::Type_Header::isValid);
-            rvalid = new IR::MethodCallExpression(srcInfo, rmethod);
+            if (right->is<IR::StructExpression>()) {
+                rvalid = new IR::BoolLiteral(true);
+            } else {
+                auto rmethod = new IR::Member(right, IR::Type_Header::isValid);
+                rvalid = new IR::MethodCallExpression(srcInfo, rmethod);
+            }
         } else {
             rvalid = new IR::BoolLiteral(true);
         }
@@ -63,7 +73,13 @@ const IR::Expression* RemoveComplexComparisons::explode(
             const IR::Expression* fright;
             const IR::Type* rightType;
             if (!rightTuple) {
-                fright = new IR::Member(srcInfo, right, f->name);
+                if (auto si = right->to<IR::StructExpression>()) {
+                    auto nf = si->components.getDeclaration<IR::NamedExpression>(f->name);
+                    CHECK_NULL(nf);
+                    fright = nf->expression;
+                } else {
+                    fright = new IR::Member(srcInfo, right, f->name);
+                }
                 rightType = f->type;
             } else {
                 fright = right->to<IR::ListExpression>()->components.at(index);
@@ -85,7 +101,13 @@ const IR::Expression* RemoveComplexComparisons::explode(
             const IR::Expression* fright;
             const IR::Type* rightType;
             if (!rightTuple) {
-                fright = new IR::Member(srcInfo, right, f->name);
+                if (auto si = right->to<IR::StructExpression>()) {
+                    auto nf = si->components.getDeclaration<IR::NamedExpression>(f->name);
+                    CHECK_NULL(nf);
+                    fright = nf->expression;
+                } else {
+                    fright = new IR::Member(srcInfo, right, f->name);
+                }
                 rightType = f->type;
             } else {
                 fright = right->to<IR::ListExpression>()->components.at(index);
@@ -133,7 +155,7 @@ const IR::Node* RemoveComplexComparisons::postorder(IR::Operation_Binary* expres
     auto ltype = typeMap->getType(expression->left, true);
     auto rtype = typeMap->getType(expression->right, true);
     if (!ltype->is<IR::Type_StructLike>() && !ltype->is<IR::Type_Stack>() &&
-        !ltype->is<IR::Type_Tuple>())
+        !ltype->is<IR::Type_BaseList>())
         return expression;
     auto result = explode(expression->srcInfo, ltype, expression->left, rtype, expression->right);
     if (expression->is<IR::Neq>())

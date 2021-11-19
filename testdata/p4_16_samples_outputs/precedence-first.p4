@@ -41,7 +41,7 @@ action ac() {
     a = (e ? c + c : d + d);
     a = d + (e ? c + c : d);
     a = (e ? c + c : d) + d;
-    a = (e ? (e ? b : c) : (e ? b : c));
+    a = (e ? b : c);
     a = ((e ? (e ? b : c) : b) == b ? b : c);
     a = b & c | d;
     a = b | c & d;
@@ -83,7 +83,7 @@ action ac() {
     a = b + c;
     a = f.z + b;
     a = fct(f.z + b, b + c);
-    f = { a + b, c };
-    g = { { a + b, c }, { a + b, c } };
-    g = { { a + b + b, c }, { a + (b + c), c } };
+    f = (s){z = a + b,w = c};
+    g = (t){s1 = (s){z = a + b,w = c},s2 = (s){z = a + b,w = c}};
+    g = (t){s1 = (s){z = a + b + b,w = c},s2 = (s){z = a + (b + c),w = c}};
 }

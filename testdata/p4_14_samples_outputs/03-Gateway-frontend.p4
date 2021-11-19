@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -44,7 +45,7 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
     @name(".nop") action nop() {
     }
@@ -64,13 +65,13 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_1() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_7() {
+    @noWarn("unused") @name(".NoAction") action NoAction_7() {
     }
-    @name(".NoAction") action NoAction_8() {
+    @noWarn("unused") @name(".NoAction") action NoAction_8() {
     }
-    @name(".NoAction") action NoAction_9() {
+    @noWarn("unused") @name(".NoAction") action NoAction_9() {
     }
     @name(".nop") action nop_2() {
     }
@@ -83,20 +84,20 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     @name(".ing_drop") action ing_drop() {
         meta.ing_metadata.drop = 1w1;
     }
-    @name(".set_egress_port") action set_egress_port(bit<8> egress_port) {
-        meta.ing_metadata.egress_port = egress_port;
+    @name(".set_egress_port") action set_egress_port(@name("egress_port") bit<8> egress_port_1) {
+        meta.ing_metadata.egress_port = egress_port_1;
     }
-    @name(".set_f1") action set_f1(bit<8> f1) {
-        meta.ing_metadata.f1 = f1;
+    @name(".set_f1") action set_f1(@name("f1") bit<8> f1_1) {
+        meta.ing_metadata.f1 = f1_1;
     }
-    @name(".set_f2") action set_f2(bit<16> f2) {
-        meta.ing_metadata.f2 = f2;
+    @name(".set_f2") action set_f2(@name("f2") bit<16> f2_1) {
+        meta.ing_metadata.f2 = f2_1;
     }
-    @name(".set_f3") action set_f3(bit<32> f3) {
-        meta.ing_metadata.f3 = f3;
+    @name(".set_f3") action set_f3(@name("f3") bit<32> f3_1) {
+        meta.ing_metadata.f3 = f3_1;
     }
-    @name(".set_f4") action set_f4(bit<64> f4) {
-        meta.ing_metadata.f4 = f4;
+    @name(".set_f4") action set_f4(@name("f4") bit<64> f4_1) {
+        meta.ing_metadata.f4 = f4_1;
     }
     @name(".i_t1") table i_t1_0 {
         actions = {
@@ -152,11 +153,12 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         i_t1_0.apply();
         if (meta.ing_metadata.f1 == hdr.vag.f1) {
             i_t2_0.apply();
-            if (meta.ing_metadata.f2 == hdr.vag.f2) 
+            if (meta.ing_metadata.f2 == hdr.vag.f2) {
                 i_t3_0.apply();
-        }
-        else 
+            }
+        } else {
             i_t4_0.apply();
+        }
     }
 }
 

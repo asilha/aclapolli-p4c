@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header H {
@@ -29,21 +30,25 @@ parser p(packet_in b, out headers hdr, inout metadata meta, inout standard_metad
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t stdmeta) {
-    H[2] tmp_0;
+    @name("ingress.tmp") H[2] tmp_0;
     apply {
         hdr.same.setValid();
         hdr.same.same = 8w0;
         stdmeta.egress_spec = 9w0;
-        if (hdr.h.s == hdr.a[0].s) 
+        if (hdr.h.s == hdr.a[0].s) {
             hdr.same.same = hdr.same.same | 8w1;
-        if (hdr.h.v == hdr.a[0].v) 
+        }
+        if (hdr.h.v == hdr.a[0].v) {
             hdr.same.same = hdr.same.same | 8w2;
-        if (hdr.h == hdr.a[0]) 
+        }
+        if (hdr.h == hdr.a[0]) {
             hdr.same.same = hdr.same.same | 8w4;
+        }
         tmp_0[0] = hdr.h;
         tmp_0[1] = hdr.a[0];
-        if (tmp_0 == hdr.a) 
+        if (tmp_0 == hdr.a) {
             hdr.same.same = hdr.same.same | 8w8;
+        }
     }
 }
 

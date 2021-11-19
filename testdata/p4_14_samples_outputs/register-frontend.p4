@@ -1,11 +1,10 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct intrinsic_metadata_t {
-    bit<4>  mcast_grp;
-    bit<4>  egress_rid;
-    bit<16> mcast_hash;
-    bit<32> lf_field_list;
+    bit<4> mcast_grp;
+    bit<4> egress_rid;
 }
 
 struct meta_t {
@@ -19,10 +18,8 @@ header ethernet_t {
 }
 
 struct metadata {
-    @name(".intrinsic_metadata") 
-    intrinsic_metadata_t intrinsic_metadata;
     @name(".meta") 
-    meta_t               meta;
+    meta_t meta;
 }
 
 struct headers {
@@ -45,13 +42,13 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
     }
 }
 
-@name(".my_register") register<bit<32>>(32w16384) my_register;
+@name(".my_register") register<bit<32>, bit<14>>(32w16384) my_register;
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".m_action") action m_action(bit<8> register_idx) {
-        my_register.read(meta.meta.register_tmp, (bit<32>)register_idx);
+    @name(".m_action") action m_action(@name("register_idx") bit<14> register_idx) {
+        my_register.read(meta.meta.register_tmp, register_idx);
     }
     @name("._nop") action _nop() {
     }

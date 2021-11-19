@@ -1,14 +1,11 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct intrinsic_metadata_t {
-    bit<4>  mcast_grp;
+    bit<16> mcast_grp;
     bit<4>  egress_rid;
-    bit<16> mcast_hash;
-    bit<32> lf_field_list;
     bit<64> ingress_global_timestamp;
-    bit<16> resubmit_flag;
-    bit<16> recirculate_flag;
 }
 
 struct metaA_t {
@@ -27,12 +24,10 @@ header hdrA_t {
 }
 
 struct metadata {
-    @name(".intrinsic_metadata") 
-    intrinsic_metadata_t intrinsic_metadata;
     @name(".metaA") 
-    metaA_t              metaA;
+    metaA_t metaA;
     @name(".metaB") 
-    metaB_t              metaB;
+    metaB_t metaB;
 }
 
 struct headers {
@@ -48,14 +43,14 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
     @name("._nop") action _nop() {
     }
     @name("._recirculate") action _recirculate() {
         recirculate<tuple<standard_metadata_t, metaA_t>>({ standard_metadata, meta.metaA });
     }
-    @name("._clone_e2e") action _clone_e2e(bit<32> mirror_id) {
+    @name("._clone_e2e") action _clone_e2e(@name("mirror_id") bit<32> mirror_id) {
         clone3<tuple<standard_metadata_t, metaA_t>>(CloneType.E2E, mirror_id, { standard_metadata, meta.metaA });
     }
     @name(".t_egress") table t_egress_0 {
@@ -78,26 +73,26 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_1() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_5() {
+    @noWarn("unused") @name(".NoAction") action NoAction_5() {
     }
     @name("._nop") action _nop_2() {
     }
     @name("._nop") action _nop_4() {
     }
-    @name("._set_port") action _set_port(bit<9> port) {
+    @name("._set_port") action _set_port(@name("port") bit<9> port) {
         standard_metadata.egress_spec = port;
         meta.metaA.f1 = 8w1;
     }
-    @name("._multicast") action _multicast(bit<4> mgrp) {
-        meta.intrinsic_metadata.mcast_grp = mgrp;
+    @name("._multicast") action _multicast(@name("mgrp") bit<16> mgrp) {
+        standard_metadata.mcast_grp = mgrp;
     }
     @name("._resubmit") action _resubmit() {
         resubmit<tuple<standard_metadata_t, metaA_t>>({ standard_metadata, meta.metaA });
     }
-    @name("._clone_i2e") action _clone_i2e(bit<32> mirror_id) {
-        clone3<tuple<standard_metadata_t, metaA_t>>(CloneType.I2E, mirror_id, { standard_metadata, meta.metaA });
+    @name("._clone_i2e") action _clone_i2e(@name("mirror_id") bit<32> mirror_id_2) {
+        clone3<tuple<standard_metadata_t, metaA_t>>(CloneType.I2E, mirror_id_2, { standard_metadata, meta.metaA });
     }
     @name(".t_ingress_1") table t_ingress {
         actions = {
