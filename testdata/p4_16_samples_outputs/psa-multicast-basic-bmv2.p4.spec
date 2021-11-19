@@ -36,17 +36,37 @@ metadata instanceof metadata_t
 
 header ethernet instanceof ethernet_t
 
+struct psa_ingress_output_metadata_t {
+	bit<8> class_of_service
+	bit<8> clone
+	bit<16> clone_session_id
+	bit<8> drop
+	bit<8> resubmit
+	bit<32> multicast_group
+	bit<32> egress_port
+}
+
+struct psa_egress_output_metadata_t {
+	bit<8> clone
+	bit<16> clone_session_id
+	bit<8> drop
+}
+
+struct psa_egress_deparser_input_metadata_t {
+	bit<32> egress_port
+}
+
 apply {
 	rx m.psa_ingress_input_metadata_ingress_port
 	mov m.psa_ingress_output_metadata_drop 0x0
 	extract h.ethernet
 	mov m.psa_ingress_output_metadata_drop 0
-	cast  h.ethernet.dstAddr bit_32 m.psa_ingress_output_metadata_multicast_group
+	mov m.psa_ingress_output_metadata_multicast_group h.ethernet.dstAddr
 	jmpneq LABEL_DROP m.psa_ingress_output_metadata_drop 0x0
 	emit h.ethernet
 	emit h.ethernet
 	tx m.psa_ingress_output_metadata_egress_port
-	LABEL_DROP : drop
+	LABEL_DROP :	drop
 }
 
 

@@ -229,11 +229,18 @@ ExternConverter::createCalculation(ConversionContext* ctxt,
             modelError("%1%: expected a struct", fields);
             return calcName;
         }
-        for (auto f : type->to<IR::Type_StructLike>()->fields) {
-            auto e = new IR::Member(fields, f->name);
-            auto ftype = ctxt->typeMap->getType(f);
-            ctxt->typeMap->setType(e, ftype);
-            list->push_back(e);
+        if (auto se = fields->to<IR::StructExpression>()) {
+            for (auto f : se->components) {
+                auto e = f->expression;
+                list->push_back(e);
+            }
+        } else {
+            for (auto f : type->to<IR::Type_StructLike>()->fields) {
+                auto e = new IR::Member(fields, f->name);
+                auto ftype = ctxt->typeMap->getType(f);
+                ctxt->typeMap->setType(e, ftype);
+                list->push_back(e);
+            }
         }
         fields = list;
         ctxt->typeMap->setType(fields, type);
@@ -271,6 +278,22 @@ ExternConverter::convertHashAlgorithm(cstring algorithm) {
         result = "csum16";
     else if (algorithm == P4V1::V1Model::instance.algorithm.xor16.name)
         result = "xor16";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.h1.name)
+        result = "h1";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.h2.name)
+        result = "h2";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.h3.name)
+        result = "h3";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.h4.name)
+        result = "h4";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.g1.name)
+        result = "g1";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.g2.name)
+        result = "g2";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.g3.name)
+        result = "g3";
+    else if (algorithm == P4V1::V1Model::instance.algorithm.g4.name)
+        result = "g4";
     else
         ::error(ErrorType::ERR_UNSUPPORTED, "Unsupported algorithm %1%", algorithm);
     return result;

@@ -36,6 +36,26 @@ metadata instanceof EMPTY_M
 
 header ethernet instanceof ethernet_t
 
+struct psa_ingress_output_metadata_t {
+	bit<8> class_of_service
+	bit<8> clone
+	bit<16> clone_session_id
+	bit<8> drop
+	bit<8> resubmit
+	bit<32> multicast_group
+	bit<32> egress_port
+}
+
+struct psa_egress_output_metadata_t {
+	bit<8> clone
+	bit<16> clone_session_id
+	bit<8> drop
+}
+
+struct psa_egress_deparser_input_metadata_t {
+	bit<32> egress_port
+}
+
 action NoAction args none {
 	return
 }
@@ -54,7 +74,7 @@ table tbl {
 		remove_header
 	}
 	default_action NoAction args none 
-	size 0
+	size 0x10000
 }
 
 
@@ -63,19 +83,22 @@ apply {
 	mov m.psa_ingress_output_metadata_drop 0x0
 	extract h.ethernet
 	table tbl
-	jmpnh LABEL_0END
+	jmpnh LABEL_END
 	invalidate h.ethernet
-	LABEL_0END :	table tbl
-	jmph LABEL_1END
-	validate h.ethernet
-	LABEL_1END :	table tbl
-	jmph LABEL_2END
-	validate h.ethernet
-	LABEL_2END :	table tbl
-	jmpnh LABEL_3END
+	LABEL_END :	table tbl
+	jmpnh LABEL_FALSE_0
+	jmp LABEL_END_0
+	LABEL_FALSE_0 :	validate h.ethernet
+	LABEL_END_0 :	table tbl
+	jmpnh LABEL_FALSE_1
+	jmp LABEL_END_1
+	LABEL_FALSE_1 :	validate h.ethernet
+	LABEL_END_1 :	table tbl
+	jmpnh LABEL_END_2
 	invalidate h.ethernet
-	LABEL_3END :	tx m.psa_ingress_output_metadata_egress_port
-	LABEL_DROP : drop
+	LABEL_END_2 :	jmpneq LABEL_DROP m.psa_ingress_output_metadata_drop 0x0
+	tx m.psa_ingress_output_metadata_egress_port
+	LABEL_DROP :	drop
 }
 
 

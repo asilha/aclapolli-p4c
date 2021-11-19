@@ -138,6 +138,7 @@ class ExpressionEvaluator : public Inspector {
 
     void postorder(const IR::Constant* expression) override;
     void postorder(const IR::BoolLiteral* expression) override;
+    void postorder(const IR::Operation_Ternary* expression) override;
     void postorder(const IR::Operation_Binary* expression) override;
     void postorder(const IR::Operation_Relation* expression) override;
     void postorder(const IR::Operation_Unary* expression) override;
@@ -146,7 +147,11 @@ class ExpressionEvaluator : public Inspector {
     bool preorder(const IR::ArrayIndex* expression) override;
     void postorder(const IR::ArrayIndex* expression) override;
     void postorder(const IR::ListExpression* expression) override;
+    void postorder(const IR::StructExpression* expression) override;
     void postorder(const IR::MethodCallExpression* expression) override;
+    void checkResult(const IR::Expression* expression,
+                     const IR::Expression* result);
+    void setNonConstant(const IR::Expression* expression);
 
  public:
     ExpressionEvaluator(ReferenceMap* refMap, TypeMap* typeMap, ValueMap* valueMap) :
@@ -364,11 +369,9 @@ class SymbolicEnum final : public ScalarValue {
 };
 
 class SymbolicStruct : public SymbolicValue {
- protected:
+ public:
     explicit SymbolicStruct(const IR::Type_StructLike* type) :
             SymbolicValue(type) { CHECK_NULL(type); }
-
- public:
     std::map<cstring, SymbolicValue*> fieldValue;
     SymbolicStruct(const IR::Type_StructLike* type, bool uninitialized,
                    const SymbolicValueFactory* factory);
@@ -433,6 +436,7 @@ class SymbolicArray final : public SymbolicValue {
     SymbolicValue* clone() const override;
     SymbolicValue* next(const IR::Node* node);
     SymbolicValue* last(const IR::Node* node);
+    SymbolicValue* lastIndex(const IR::Node* node);
     bool isScalar() const override { return false; }
     void setAllUnknown() override;
     void assign(const SymbolicValue* other) override;

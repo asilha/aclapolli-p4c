@@ -130,8 +130,21 @@ Util::IJson* ExternConverter_clone::convertExternFunction(
         modelError("%1%: must be a constant on this target", cloneType);
         return nullptr;
     }
-    cstring prim = ei->name == "I2E" ? "clone_ingress_pkt_to_egress" :
-                   "clone_egress_pkt_to_egress";
+    cstring prim;
+    if (ei->name == "I2E") {
+        prim = "clone_ingress_pkt_to_egress";
+        if (ctxt->blockConverted != BlockConverted::Ingress) {
+            ::error("'clone(I2E, ...) not invoked in ingress %1%", mc);
+            return nullptr;
+        }
+    } else {
+        prim = "clone_egress_pkt_to_egress";
+        if (ctxt->blockConverted != BlockConverted::Egress) {
+            ::error("'clone(E2E, ...) not invoked in egress %1%", mc);
+            return nullptr;
+        }
+    }
+
     auto session = ctxt->conv->convert(mc->arguments->at(1)->expression);
     auto primitive = mkPrimitive(prim);
     auto parameters = mkParameters(primitive);
@@ -148,7 +161,7 @@ Util::IJson* ExternConverter_clone::convertExternFunction(
 }
 
 Util::IJson* ExternConverter_clone3::convertExternFunction(
-    UNUSED ConversionContext* ctxt, UNUSED const P4::ExternFunction* ef,
+    ConversionContext* ctxt, UNUSED const P4::ExternFunction* ef,
     UNUSED const IR::MethodCallExpression* mc, UNUSED const IR::StatOrDecl* s,
     UNUSED const bool emitExterns) {
     (void) v1model.clone.clone3.name;
@@ -166,8 +179,20 @@ Util::IJson* ExternConverter_clone3::convertExternFunction(
         modelError("%1%: must be a constant on this target", cloneType);
         return nullptr;
     }
-    cstring prim = ei->name == "I2E" ? "clone_ingress_pkt_to_egress" :
-                   "clone_egress_pkt_to_egress";
+    cstring prim;
+    if (ei->name == "I2E") {
+        prim = "clone_ingress_pkt_to_egress";
+        if (ctxt->blockConverted != BlockConverted::Ingress) {
+            ::error("'clone3(I2E, ...) not invoked in ingress %1%", mc);
+            return nullptr;
+        }
+    } else {
+        prim = "clone_egress_pkt_to_egress";
+        if (ctxt->blockConverted != BlockConverted::Egress) {
+            ::error("'clone3(E2E, ...) not invoked in egress %1%", mc);
+            return nullptr;
+        }
+    }
     auto session = ctxt->conv->convert(mc->arguments->at(1)->expression);
     auto primitive = mkPrimitive(prim);
     auto parameters = mkParameters(primitive);
@@ -197,7 +222,11 @@ Util::IJson* ExternConverter_hash::convertExternFunction(
         v1model.algorithm.crc32.name, v1model.algorithm.crc32_custom.name,
         v1model.algorithm.crc16.name, v1model.algorithm.crc16_custom.name,
         v1model.algorithm.random.name, v1model.algorithm.identity.name,
-        v1model.algorithm.csum16.name, v1model.algorithm.xor16.name
+        v1model.algorithm.csum16.name, v1model.algorithm.xor16.name,
+        v1model.algorithm.h1.name, v1model.algorithm.h2.name,
+        v1model.algorithm.h3.name, v1model.algorithm.h4.name,
+        v1model.algorithm.g1.name, v1model.algorithm.g2.name,
+        v1model.algorithm.g3.name, v1model.algorithm.g4.name
     };
 
     if (mc->arguments->size() != 5) {
@@ -268,9 +297,13 @@ Util::IJson* ExternConverter_digest::convertExternFunction(
 }
 
 Util::IJson* ExternConverter_resubmit::convertExternFunction(
-    UNUSED ConversionContext* ctxt, UNUSED const P4::ExternFunction* ef,
+    ConversionContext* ctxt, UNUSED const P4::ExternFunction* ef,
     UNUSED const IR::MethodCallExpression* mc, UNUSED const IR::StatOrDecl* s,
     UNUSED const bool emitExterns) {
+    if (ctxt->blockConverted != BlockConverted::Ingress) {
+        ::error("'resubmit' can only be invoked in ingress %1%", mc);
+        return nullptr;
+    }
     if (mc->arguments->size() != 1) {
         modelError("Expected 1 argument for %1%", mc);
         return nullptr;
@@ -309,9 +342,13 @@ Util::IJson* ExternConverter_resubmit::convertExternFunction(
 }
 
 Util::IJson* ExternConverter_recirculate::convertExternFunction(
-    UNUSED ConversionContext* ctxt, UNUSED const P4::ExternFunction* ef,
+    ConversionContext* ctxt, UNUSED const P4::ExternFunction* ef,
     UNUSED const IR::MethodCallExpression* mc, UNUSED const IR::StatOrDecl* s,
     UNUSED const bool emitExterns) {
+    if (ctxt->blockConverted != BlockConverted::Egress) {
+        ::error("'resubmit' can only be invoked in egress %1%", mc);
+        return nullptr;
+    }
     if (mc->arguments->size() != 1) {
         modelError("Expected 1 argument for %1%", mc);
         return nullptr;
@@ -803,6 +840,36 @@ void ExternConverter_action_selector::convertExternInstance(
     ctxt->action_profiles->append(action_profile);
 }
 
+namespace {
+/// Converts expr into a ListExpression or returns nullptr if not
+/// possible
+static const IR::ListExpression* convertToList(const IR::Expression* expr, P4::TypeMap* typeMap) {
+    if (auto l = expr->to<IR::ListExpression>())
+        return l;
+
+    // expand it into a list
+    auto list = new IR::ListExpression({});
+    auto type = typeMap->getType(expr, true);
+    auto st = type->to<IR::Type_StructLike>();
+    if (!st) {
+        return nullptr;
+    }
+    if (auto se = expr->to<IR::StructExpression>()) {
+        for (auto f : se->components)
+            list->push_back(f->expression);
+    } else {
+        for (auto f : st->fields) {
+            auto e = new IR::Member(expr, f->name);
+            auto ftype = typeMap->getType(f);
+            typeMap->setType(e, ftype);
+            list->push_back(e);
+        }
+    }
+    typeMap->setType(list, type);
+    return list;
+}
+}  // namespace
+
 Util::IJson* ExternConverter_log_msg::convertExternFunction(
     ConversionContext* ctxt, UNUSED const P4::ExternFunction* ef,
     const IR::MethodCallExpression* mc, const IR::StatOrDecl* s,
@@ -822,25 +889,21 @@ Util::IJson* ExternConverter_log_msg::convertExternFunction(
         auto arg1 = mc->arguments->at(1)->expression;
         // this must be a list expression, with all components
         // evaluating to integral types.
-        auto argType = ctxt->typeMap->getType(arg1);
-        if (auto ts = argType->to<IR::Type_List>()) {
-            for (auto tf : ts->components) {
-                if (!tf->is<IR::Type_Bits>() && !tf->is<IR::Type_Boolean>()) {
-                    ::error(ErrorType::ERR_UNSUPPORTED_ON_TARGET,
-                            "%1%: only integral values supported for logged values", mc);
-                    return primitive;
-                }
-            }
-        } else {
+        auto le = convertToList(arg1, ctxt->typeMap);
+        if (!le) {
             ::error(ErrorType::ERR_UNSUPPORTED_ON_TARGET,
-                    "%1%: Second argument must be a list expression: %2%", mc, arg1);
+                     "%1%: Second argument must be a list expression: %2%", mc, arg1);
             return primitive;
         }
 
-        auto le = arg1->to<IR::ListExpression>();
-        CHECK_NULL(le);
         auto arr = new Util::JsonArray();
         for (auto v : le->components) {
+            auto tf = ctxt->typeMap->getType(v);
+            if (!tf->is<IR::Type_Bits>() && !tf->is<IR::Type_Boolean>()) {
+                ::error(ErrorType::ERR_UNSUPPORTED_ON_TARGET,
+                        "%1%: only integral values supported for logged values", mc);
+                return primitive;
+            }
             auto val = ctxt->conv->convert(v, false, true, true);
             arr->append(val);
         }
@@ -871,22 +934,10 @@ SimpleSwitchBackend::createCalculation(cstring algo, const IR::Expression* field
     if (sourcePositionNode != nullptr)
         calc->emplace_non_null("source_info", sourcePositionNode->sourceInfoJsonObj());
     calc->emplace("algo", algo);
-    if (!fields->is<IR::ListExpression>()) {
-        // expand it into a list
-        auto list = new IR::ListExpression({});
-        auto type = typeMap->getType(fields, true);
-        if (!type->is<IR::Type_StructLike>()) {
-            modelError("%1%: expected a struct", fields);
-            return calcName;
-        }
-        for (auto f : type->to<IR::Type_StructLike>()->fields) {
-            auto e = new IR::Member(fields, f->name);
-            auto ftype = typeMap->getType(f);
-            typeMap->setType(e, ftype);
-            list->push_back(e);
-        }
-        fields = list;
-        typeMap->setType(fields, type);
+    fields = convertToList(fields, typeMap);
+    if (!fields) {
+        modelError("%1%: expected a struct", fields);
+        return calcName;
     }
     auto jright = conv->convertWithConstantWidths(fields);
     if (withPayload) {
@@ -914,6 +965,7 @@ class EnsureExpressionIsSimple : public Inspector {
                 "%1%: Computations are not supported in %2%", expression, block);
         return false;
     }
+    bool preorder(const IR::StructExpression*) override { return true; }
     bool preorder(const IR::PathExpression*) override { return true; }
     bool preorder(const IR::Member*) override { return true; }
     bool preorder(const IR::ListExpression*) override { return true; }
@@ -983,6 +1035,7 @@ void SimpleSwitchBackend::createActions(ConversionContext* ctxt, V1ProgramStruct
     auto cvt = new ActionConverter(ctxt, options.emitExterns);
     for (auto it : structure->actions) {
         auto action = it.first;
+        ctxt->blockConverted = structure->blockKind(it.second);
         action->apply(*cvt);
     }
 }
@@ -1148,25 +1201,32 @@ SimpleSwitchBackend::convert(const IR::ToplevelBlock* tlb) {
     auto hconv = new HeaderConverter(ctxt, scalarsName);
     program->apply(*hconv);
 
+    ctxt->blockConverted = BlockConverted::Parser;
     auto pconv = new ParserConverter(ctxt);
     structure->parser->apply(*pconv);
 
+    ctxt->blockConverted = BlockConverted::None;
     createActions(ctxt, structure);
 
+    ctxt->blockConverted = BlockConverted::Ingress;
     auto cconv = new ControlConverter<Standard::Arch::V1MODEL>(ctxt,
             "ingress", options.emitExterns);
     structure->ingress->apply(*cconv);
 
+    ctxt->blockConverted = BlockConverted::Egress;
     cconv = new ControlConverter<Standard::Arch::V1MODEL>(ctxt,
             "egress", options.emitExterns);
     structure->egress->apply(*cconv);
 
+    ctxt->blockConverted = BlockConverted::Deparser;
     auto dconv = new DeparserConverter(ctxt);
     structure->deparser->apply(*dconv);
 
+    ctxt->blockConverted = BlockConverted::ChecksumCompute;
     convertChecksum(structure->compute_checksum->body, json->checksums,
                     json->calculations, false);
 
+    ctxt->blockConverted = BlockConverted::ChecksumVerify;
     convertChecksum(structure->verify_checksum->body, json->checksums,
                     json->calculations, true);
 

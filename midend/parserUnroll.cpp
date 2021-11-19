@@ -154,9 +154,13 @@ class ParserStateRewriter : public Transform {
                 else
                     idx = i;
             }
-            state->statesIndexes[expression->expr->toString()] = idx;
-            return new IR::ArrayIndex(expression->expr->clone(),
-                                                          new IR::Constant(idx));
+            if (expression->member.name == IR::Type_Stack::lastIndex) {
+                return new IR::Constant(IR::Type_Bits::get(32), idx);
+            } else {
+                state->statesIndexes[expression->expr->toString()] = idx;
+                return new IR::ArrayIndex(expression->expr->clone(),
+                                          new IR::Constant(IR::Type_Bits::get(32), idx));
+            }
         }
         return expression;
     }
@@ -347,7 +351,7 @@ class ParserSymbolicInterpreter {
     /// Returns pointer to genereted statement if execution completes successfully,
     /// and 'nullptr' if an error occurred.
     const IR::StatOrDecl* executeStatement(ParserStateInfo* state, const IR::StatOrDecl* sord,
-                          ValueMap* valueMap) {
+                                           ValueMap* valueMap) {
         const IR::StatOrDecl* newSord = nullptr;
         ExpressionEvaluator ev(refMap, typeMap, valueMap);
 
@@ -367,6 +371,16 @@ class ParserSymbolicInterpreter {
             auto mc = sord->to<IR::MethodCallStatement>();
             auto e = ev.evaluate(mc->methodCall, false);
             success = reportIfError(state, e);
+        } else if (auto bs = sord->to<IR::BlockStatement>()) {
+            IR::IndexedVector<IR::StatOrDecl> newComponents;
+            for (auto* component : bs->components) {
+                auto newComponent = executeStatement(state, component, valueMap);
+                if (!newComponent)
+                    success = false;
+                else
+                    newComponents.push_back(newComponent);
+            }
+            sord = new IR::BlockStatement(newComponents);
         } else {
             BUG("%1%: unexpected declaration or statement", sord);
         }
@@ -386,7 +400,7 @@ class ParserSymbolicInterpreter {
                                              const IR::Expression*>;
 
     EvaluationSelectResult evaluateSelect(ParserStateInfo* state,
-                                   ValueMap* valueMap) {
+                                          ValueMap* valueMap) {
         const IR::Expression* newSelect = nullptr;
         auto select = state->state->selectExpression;
         if (select == nullptr)

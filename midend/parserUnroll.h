@@ -22,6 +22,7 @@ limitations under the License.
 #include "frontends/p4/callGraph.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
 #include "frontends/p4/typeMap.h"
+#include "frontends/p4/simplify.h"
 #include "interpreter.h"
 
 namespace P4 {
@@ -185,6 +186,7 @@ class RewriteAllParsers : public Transform {
     const IR::Node* postorder(IR::P4Parser* parser) override {
         // making rewriting
         auto rewriter = new ParserRewriter(refMap, typeMap, unroll);
+        rewriter->setCalledBy(this);
         parser->apply(*rewriter);
         /// make a new parser
         BUG_CHECK(rewriter->current.result,
@@ -221,6 +223,8 @@ class RewriteAllParsers : public Transform {
 class ParsersUnroll : public PassManager {
  public:
     ParsersUnroll(bool unroll, ReferenceMap* refMap, TypeMap* typeMap) {
+        // remove block statements
+        passes.push_back(new SimplifyControlFlow(refMap, typeMap));
         passes.push_back(new TypeChecking(refMap, typeMap));
         passes.push_back(new RewriteAllParsers(refMap, typeMap, unroll));
         setName("ParsersUnroll");

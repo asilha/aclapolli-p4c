@@ -833,7 +833,8 @@ ProgramStructure::convertActionProfile(const IR::ActionProfile* action_profile, 
         auto size = new IR::Constant(
             action_profile->srcInfo, v1model.action_profile.sizeType, action_profile->size);
         args->push_back(new IR::Argument(size)); }
-    auto decl = new IR::Declaration_Instance(newName, annos, type, args, nullptr);
+    auto decl = new IR::Declaration_Instance(
+        action_profile->srcInfo, newName, annos, type, args, nullptr);
     return decl;
 }
 
@@ -1027,6 +1028,22 @@ const IR::Expression* ProgramStructure::convertHashAlgorithm(
         result = v1model.algorithm.csum16.Id();
     } else if (algorithm == "xor16") {
         result = v1model.algorithm.xor16.Id();
+    } else if (algorithm == "h1") {
+        result = v1model.algorithm.h1.Id();
+    } else if (algorithm == "h2") {
+        result = v1model.algorithm.h2.Id();
+    } else if (algorithm == "h3") {
+        result = v1model.algorithm.h3.Id();
+    } else if (algorithm == "h4") {
+        result = v1model.algorithm.h4.Id();
+    } else if (algorithm == "g1") {
+        result = v1model.algorithm.g1.Id();
+    } else if (algorithm == "g2") {
+        result = v1model.algorithm.g2.Id();
+    } else if (algorithm == "g3") {
+        result = v1model.algorithm.g3.Id();
+    } else if (algorithm == "g4") {
+        result = v1model.algorithm.g4.Id();
     } else {
         ::warning(ErrorType::WARN_UNSUPPORTED, "%1%: unexpected algorithm", algorithm);
         result = algorithm;
@@ -2462,7 +2479,7 @@ void ProgramStructure::createChecksumUpdates() {
     auto type = new IR::Type_Control(v1model.compute.Id(), params);
     auto body = new IR::BlockStatement;
     for (auto cf : calculated_fields) {
-        LOG3("Conveting " << cf);
+        LOG3("Converting " << cf);
         auto dest = conv.convert(cf->field);
 
         for (auto uov : cf->specs) {
@@ -2499,14 +2516,14 @@ void ProgramStructure::createChecksumUpdates() {
                 auto newAnnot = new IR::Annotation(annot->name, {}, false);
                 for (auto expr : annot->expr)
                     newAnnot->expr.push_back(expr);
-                newAnnot->expr.push_back(methodCallExpression);
+                newAnnot->expr.push_back(new IR::StringLiteral(methodCallExpression->toString()));
                 body->annotations = body->annotations->add(newAnnot);
             }
             for (auto annot : flc->annotations->annotations) {
                 auto newAnnot = new IR::Annotation(annot->name, {}, false);
                 for (auto expr : annot->expr)
                     newAnnot->expr.push_back(expr);
-                newAnnot->expr.push_back(methodCallExpression);
+                newAnnot->expr.push_back(new IR::StringLiteral(methodCallExpression->toString()));
                 body->annotations = body->annotations->add(newAnnot);
             }
 

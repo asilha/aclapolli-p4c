@@ -49,7 +49,6 @@
 #include "midend/predication.h"
 #include "midend/removeExits.h"
 #include "midend/removeMiss.h"
-#include "midend/removeParameters.h"
 #include "midend/removeSelectBooleans.h"
 #include "midend/simplifyKey.h"
 #include "midend/simplifySelectCases.h"
@@ -105,7 +104,6 @@ class MidEnd : public PassManager {
             new P4::RemoveMiss(&refMap, &typeMap),
             new P4::EliminateNewtype(&refMap, &typeMap),
             new P4::EliminateSerEnums(&refMap, &typeMap),
-            new P4::RemoveActionParameters(&refMap, &typeMap),
             new P4::SimplifyKey(&refMap, &typeMap,
                                 new P4::OrPolicy(
                                     new P4::IsValid(&refMap, &typeMap),
@@ -195,12 +193,8 @@ class MidEnd : public PassManager {
 #endif
 
 const IR::P4Parser* getParser(const IR::P4Program* program) {
-    cstring parserName = "MyParser";
-   /* std::function<bool(const IR::IDeclaration*)> filter =
-            [parserName](const IR::IDeclaration* d)
-            { CHECK_NULL(d); return d->getName().name.find(parserName.c_str()) != nullptr; };*/
     std::function<bool(const IR::IDeclaration*)> filter =
-            [parserName](const IR::IDeclaration* d)
+            [](const IR::IDeclaration* d)
             { CHECK_NULL(d); return d->is<IR::P4Parser>(); };
     const auto* newDeclVector = program->getDeclarations()->where(filter)->toVector();
     return (*newDeclVector)[0]->to<IR::P4Parser>();
@@ -211,6 +205,7 @@ std::pair<const IR::P4Parser*, const IR::P4Parser*> rewriteParser(const IR::P4Pr
                                                                   CompilerOptions& options) {
     P4::FrontEnd frontend;
     program = frontend.run(options, program);
+    CHECK_NULL(program);
     P4::ReferenceMap    refMap;
     P4::TypeMap         typeMap;
 
@@ -234,12 +229,12 @@ std::pair<const IR::P4Parser*, const IR::P4Parser*> rewriteParser(const IR::P4Pr
 
 /// Loads example from a file
 const IR::P4Program* load_model(const char* curFile, CompilerOptions& options) {
-    std::string includeDir = std::string(relPath) + std::string("p4include");
+    std::string includeDir = std::string(buildPath) + std::string("p4include");
     auto originalEnv = getenv("P4C_16_INCLUDE_PATH");
     setenv("P4C_16_INCLUDE_PATH", includeDir.c_str(), 1);
     options.loopsUnrolling = true;
     options.compilerVersion = P4TEST_VERSION_STRING;
-    options.file = relPath;
+    options.file = sourcePath;
     options.file += "testdata/p4_16_samples/";
     options.file += curFile;
     auto program = P4::parseP4File(options);
