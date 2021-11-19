@@ -10,7 +10,7 @@ ARG MAKEFLAGS=-j2
 # is optimized for image size. Use `test` if this image will be used for
 # testing; in this case, the source code and build-only dependencies will not be
 # removed from the image.
-ARG IMAGE_TYPE=build
+ARG IMAGE_TYPE=test
 
 ENV P4C_DEPS bison \
              build-essential \
