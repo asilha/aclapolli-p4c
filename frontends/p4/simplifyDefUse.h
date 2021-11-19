@@ -37,7 +37,7 @@ class DoSimplifyDefUse : public Transform {
     const IR::Node* postorder(IR::Function* function) override {
         if (findContext<IR::Declaration_Instance>() == nullptr)
             // not an abstract function implementation: these
-            // are processed as parat of the control body
+            // are processed as part of the control body
             return process(function);
         return function;
     }
@@ -47,11 +47,14 @@ class DoSimplifyDefUse : public Transform {
     { return process(control); }
 };
 
-class SimplifyDefUse : public PassManager {
+class SimplifyDefUse : public PassRepeated {
  public:
-    SimplifyDefUse(ReferenceMap* refMap, TypeMap* typeMap) {
+    SimplifyDefUse(ReferenceMap* refMap, TypeMap* typeMap,
+             TypeChecking* typeChecking = nullptr) : PassRepeated({}) {
         CHECK_NULL(refMap); CHECK_NULL(typeMap);
-        passes.push_back(new TypeChecking(refMap, typeMap));
+        if (!typeChecking)
+            typeChecking = new TypeChecking(refMap, typeMap);
+        passes.push_back(typeChecking);
         passes.push_back(new DoSimplifyDefUse(refMap, typeMap));
         setName("SimplifyDefUse");
     }

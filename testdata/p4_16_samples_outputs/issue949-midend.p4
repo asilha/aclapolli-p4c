@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct routing_metadata_t {
@@ -18,7 +19,7 @@ header ipv4_t {
 }
 
 struct metadata {
-    routing_metadata_t routing_metadata;
+    bit<32> _routing_metadata_nhop_ipv40;
 }
 
 struct headers {
@@ -46,7 +47,7 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name("ingress.setDest") action setDest() {
         hdr.ethernet.dstAddr = 48w0x6af3400426d3;
@@ -57,9 +58,9 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         }
         actions = {
             setDest();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     apply {
         someTable_0.apply();

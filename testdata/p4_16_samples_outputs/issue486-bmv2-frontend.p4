@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header X {
@@ -31,7 +32,7 @@ parser parserI(packet_in pkt, out Parsed_packet hdr, inout metadata m, inout sta
 }
 
 control cIngress(inout Parsed_packet hdr, inout metadata m, inout standard_metadata_t stdmeta) {
-    bit<32> z_0;
+    @name("cIngress.z") bit<32> z_0;
     @name("cIngress.foo") action foo() {
     }
     @name("cIngress.t") table t_0 {

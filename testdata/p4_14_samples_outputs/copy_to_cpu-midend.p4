@@ -1,11 +1,10 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct intrinsic_metadata_t {
-    bit<4>  mcast_grp;
-    bit<4>  egress_rid;
-    bit<16> mcast_hash;
-    bit<32> lf_field_list;
+    bit<4> mcast_grp;
+    bit<4> egress_rid;
 }
 
 header cpu_header_t {
@@ -20,8 +19,6 @@ header ethernet_t {
 }
 
 struct metadata {
-    @name(".intrinsic_metadata") 
-    intrinsic_metadata_t intrinsic_metadata;
 }
 
 struct headers {
@@ -32,7 +29,7 @@ struct headers {
 }
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    bit<64> tmp;
+    @name("ParserImpl.tmp_0") bit<64> tmp_0;
     @name(".parse_cpu_header") state parse_cpu_header {
         packet.extract<cpu_header_t>(hdr.cpu_header);
         transition parse_ethernet;
@@ -42,8 +39,8 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
         transition accept;
     }
     @name(".start") state start {
-        tmp = packet.lookahead<bit<64>>();
-        transition select(tmp[63:0]) {
+        tmp_0 = packet.lookahead<bit<64>>();
+        transition select(tmp_0) {
             64w0: parse_cpu_header;
             default: parse_ethernet;
         }
@@ -51,10 +48,10 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
     }
     @name("._drop") action _drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".do_cpu_encap") action do_cpu_encap() {
         hdr.cpu_header.setValid();
@@ -65,13 +62,13 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
         actions = {
             _drop();
             do_cpu_encap();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_2();
         }
         key = {
             standard_metadata.instance_type: exact @name("standard_metadata.instance_type") ;
         }
         size = 16;
-        default_action = NoAction_0();
+        default_action = NoAction_2();
     }
     apply {
         redirect_0.apply();
@@ -79,22 +76,22 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 struct tuple_0 {
-    standard_metadata_t field;
+    standard_metadata_t f0;
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_1() {
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
     }
     @name(".do_copy_to_cpu") action do_copy_to_cpu() {
-        clone3<tuple_0>(CloneType.I2E, 32w250, { standard_metadata });
+        clone3<tuple_0>(CloneType.I2E, 32w250, (tuple_0){f0 = standard_metadata});
     }
     @name(".copy_to_cpu") table copy_to_cpu_0 {
         actions = {
             do_copy_to_cpu();
-            @defaultonly NoAction_1();
+            @defaultonly NoAction_3();
         }
         size = 1;
-        default_action = NoAction_1();
+        default_action = NoAction_3();
     }
     apply {
         copy_to_cpu_0.apply();

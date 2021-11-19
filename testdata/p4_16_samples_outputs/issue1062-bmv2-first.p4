@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header hdr {
@@ -60,9 +61,7 @@ control ingress(inout Header_t h, inout Meta_t m, inout standard_metadata_t stan
         default_action = set_error_idx(8w0);
         const entries = {
                         error.NoError : set_error_idx(8w1);
-
         }
-
     }
     apply {
         t_exact.apply();

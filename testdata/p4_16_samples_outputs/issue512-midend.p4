@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<48> EthernetAddress;
@@ -31,12 +32,12 @@ parser parserI(packet_in pkt, out Parsed_packet hdr, inout mystruct1 meta, inout
 }
 
 control cIngress(inout Parsed_packet hdr, inout mystruct1 meta, inout standard_metadata_t stdmeta) {
-    bool pred;
+    bool cond;
     @name("cIngress.foo") action foo() {
         meta.b = meta.b + 4w5;
-        pred = meta.b > 4w10;
+        cond = meta.b > 4w10;
         meta.b = (meta.b > 4w10 ? meta.b ^ 4w5 : meta.b);
-        meta.b = (!(pred ? true : false) ? meta.b + 4w5 : meta.b);
+        meta.b = (cond ? meta.b : meta.b + 4w5);
     }
     @name("cIngress.guh") table guh_0 {
         key = {

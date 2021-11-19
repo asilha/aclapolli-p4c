@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef P4C_LIB_LOG_H_
-#define P4C_LIB_LOG_H_
+#ifndef _LIB_LOG_H_
+#define _LIB_LOG_H_
 
 #include <functional>
 #include <iostream>
@@ -58,10 +58,12 @@ class OutputLogPrefix {
     ~OutputLogPrefix();
     static void indent(std::ostream &out);
 };
+
+void addInvalidateCallback(void (*)(void));
 }  // namespace Detail
 
 inline std::ostream &endl(std::ostream &out) {
-    out << std::endl << indent_t::getindent(out);
+    out << std::endl;
     Detail::OutputLogPrefix::indent(out);
     return out; }
 
@@ -84,7 +86,12 @@ void increaseVerbosity();
 
 }  // namespace Log
 
-#define LOGGING(N) (::Log::fileLogLevelIsAtLeast(__FILE__, N))
+#ifndef MAX_LOGGING_LEVEL
+// can be set on build command line and disables higher logging levels at compile time
+#define MAX_LOGGING_LEVEL 10
+#endif
+
+#define LOGGING(N) ((N) <= MAX_LOGGING_LEVEL && ::Log::fileLogLevelIsAtLeast(__FILE__, N))
 #define LOGN(N, X) (LOGGING(N)                                                  \
                       ? ::Log::Detail::fileLogOutput(__FILE__)                  \
                           << ::Log::Detail::OutputLogPrefix(__FILE__, N)        \
@@ -100,16 +107,29 @@ void increaseVerbosity();
 #define LOG8(X) LOGN(8, X)
 #define LOG9(X) LOGN(9, X)
 
-#define LOG_FEATURE(TAG, N, X) (::Log::fileLogLevelIsAtLeast(TAG, N)            \
-                      ? std::clog << ::Log::Detail::OutputLogPrefix(TAG, N)     \
-                                  << X << std::endl                             \
+#define LOGN_UNINDENT(N) (LOGGING(N) ? ::Log::Detail::fileLogOutput(__FILE__)   \
+                                        << IndentCtl::unindent : std::clog)
+#define LOG1_UNINDENT   LOGN_UNINDENT(1)
+#define LOG2_UNINDENT   LOGN_UNINDENT(2)
+#define LOG3_UNINDENT   LOGN_UNINDENT(3)
+#define LOG4_UNINDENT   LOGN_UNINDENT(4)
+#define LOG5_UNINDENT   LOGN_UNINDENT(5)
+#define LOG6_UNINDENT   LOGN_UNINDENT(6)
+#define LOG7_UNINDENT   LOGN_UNINDENT(7)
+#define LOG8_UNINDENT   LOGN_UNINDENT(8)
+#define LOG9_UNINDENT   LOGN_UNINDENT(9)
+
+#define LOG_FEATURE(TAG, N, X) ((N) <= MAX_LOGGING_LEVEL && ::Log::fileLogLevelIsAtLeast(TAG, N) \
+                      ? ::Log::Detail::fileLogOutput(TAG)                       \
+                          << ::Log::Detail::OutputLogPrefix(TAG, N)             \
+                          << X << std::endl                                     \
                       : std::clog)
 
-#define ERROR(X) (std::clog << "ERROR: " << X << std::endl)
-#define WARNING(X) (::Log::verbose()                               \
+#define P4C_ERROR(X) (std::clog << "ERROR: " << X << std::endl)
+#define P4C_WARNING(X) (::Log::verbose()                               \
                       ? std::clog << "WARNING: " << X << std::endl \
                       : std::clog)
-#define ERRWARN(C, X) ((C) ? ERROR(X) : WARNING(X))
+#define ERRWARN(C, X) ((C) ? P4C_ERROR(X) : P4C_WARNING(X))
 
 static inline std::ostream &operator<<(std::ostream &out,
                                        std::function<std::ostream &(std::ostream&)> fn) {
@@ -145,4 +165,4 @@ template<class T> std::ostream &operator<<(std::ostream &out, const std::set<T> 
     out << (sep+1) << ')';
     return out; }
 
-#endif /* P4C_LIB_LOG_H_ */
+#endif /* _LIB_LOG_H_ */

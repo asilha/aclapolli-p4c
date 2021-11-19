@@ -1,8 +1,13 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
-struct headers {
+header Header {
     bit<16> x;
+}
+
+struct headers {
+    Header h;
 }
 
 struct metadata {
@@ -10,7 +15,7 @@ struct metadata {
 
 parser MyParser(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     state start {
-        hdr.x = 0;
+        hdr.h.x = 0;
         transition accept;
     }
 }
@@ -23,7 +28,7 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 control C(inout headers hdr, inout metadata meta)(bool b) {
     register<bit<16>>(32w8) r;
     apply {
-        r.read(hdr.x, 0);
+        r.read(hdr.h.x, 0);
     }
 }
 

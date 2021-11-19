@@ -20,99 +20,112 @@ limitations under the License.
 
 namespace P4 {
 
-void DoExpandLookahead::expandSetValid(const IR::Expression* base, const IR::Type* type,
-                                       IR::IndexedVector<IR::StatOrDecl>* output) {
-    if (type->is<IR::Type_Struct>()) {
-        auto st = type->to<IR::Type_Struct>();
-        for (auto f : st->fields) {
-            auto t = typeMap->getTypeType(f->type, true);
-            if (t == nullptr)
-                return;
-            auto mem = new IR::Member(base, f->name);
-            expandSetValid(mem, t, output);
-        }
-    } else if (type->is<IR::Type_Header>()) {
-        auto setValid = new IR::Member(base, IR::Type_Header::setValid);
-        auto mc = new IR::MethodCallExpression(setValid);
-        output->push_back(new IR::MethodCallStatement(mc));
-    }
-}
-
-const IR::Expression* DoExpandLookahead::expand(
-    const IR::PathExpression* base, const IR::Type* type, unsigned* offset) {
+void DoExpandLookahead::expand(
+    const IR::PathExpression* bitvector,  // source value containing all bits
+    const IR::Type* type,                 // type that is being extracted from source
+    unsigned* offset,                     // current bit offset in source
+    const IR::Expression* destination,    // result is assigned to this expression
+    IR::IndexedVector<IR::StatOrDecl>* output) {  // add here new assignments
     if (type->is<IR::Type_Struct>() || type->is<IR::Type_Header>()) {
-        auto vec = new IR::IndexedVector<IR::NamedExpression>();
+        if (type->is<IR::Type_Header>()) {
+            auto setValid = new IR::Member(destination, IR::Type_Header::setValid);
+            auto mc = new IR::MethodCallExpression(setValid);
+            output->push_back(new IR::MethodCallStatement(mc));
+        }
         auto st = type->to<IR::Type_StructLike>();
         for (auto f : st->fields) {
             auto t = typeMap->getTypeType(f->type, true);
             if (t == nullptr)
                 continue;
-            auto e = expand(base, t, offset);
-            vec->push_back(new IR::NamedExpression(f->srcInfo, f->name, e));
+            auto member = new IR::Member(destination, f->name);
+            expand(bitvector, t, offset, member, output);
         }
-        return new IR::StructInitializerExpression(
-            base->srcInfo, st->name, *vec, type->is<IR::Type_Header>());
     } else if (type->is<IR::Type_Bits>() || type->is<IR::Type_Boolean>()) {
         unsigned size = type->width_bits();
         BUG_CHECK(size > 0, "%1%: unexpected size %2%", type, size);
-        auto expression = new IR::Slice(base->clone(), *offset - 1, *offset - size);
+        const IR::Expression* expression =
+                new IR::Slice(bitvector->clone(), *offset - 1, *offset - size);
+        auto tb = type->to<IR::Type_Bits>();
+        if (!tb || tb->isSigned)
+            expression = new IR::Cast(type, expression);
         *offset -= size;
-        return expression;
+        auto assignment = new IR::AssignmentStatement(
+            bitvector->srcInfo, destination, expression);
+        output->push_back(assignment);
+    } else if (auto ts = type->to<IR::Type_Stack>()) {
+        unsigned elements = ts->getSize();
+        auto etype = ts->elementType;
+        for (unsigned i = 0; i < elements; i++) {
+            auto member = new IR::ArrayIndex(destination, new IR::Constant(i));
+            expand(bitvector, etype, offset, member, output);
+        }
     } else {
-        ::error("%1%: unexpected type in lookahead argument", type);
-        return nullptr;
+        ::error(ErrorType::ERR_UNEXPECTED, "%1%: unexpected type in lookahead argument", type);
     }
 }
 
-const IR::Node* DoExpandLookahead::postorder(IR::AssignmentStatement* statement) {
-    if (!statement->right->is<IR::MethodCallExpression>())
-        return statement;
-
-    auto mce = statement->right->to<IR::MethodCallExpression>();
-    auto mi = MethodInstance::resolve(mce, refMap, typeMap);
+DoExpandLookahead::ExpansionInfo*
+DoExpandLookahead::convertLookahead(const IR::MethodCallExpression* expression) {
+    if (expression == nullptr)
+        return nullptr;
+    auto mi = MethodInstance::resolve(expression, refMap, typeMap);
     if (!mi->is<P4::ExternMethod>())
-        return statement;
+        return nullptr;
     auto em = mi->to<P4::ExternMethod>();
     if (em->originalExternType->name != P4CoreLibrary::instance.packetIn.name ||
         em->method->name != P4CoreLibrary::instance.packetIn.lookahead.name)
-        return statement;
+        return nullptr;
 
     // this is a call to packet_in.lookahead.
-    BUG_CHECK(mce->typeArguments->size() == 1,
+    BUG_CHECK(expression->typeArguments->size() == 1,
               "Expected 1 type parameter for %1%", em->method);
-    auto targ = mce->typeArguments->at(0);
+    auto targ = expression->typeArguments->at(0);
     auto typearg = typeMap->getTypeType(targ, true);
     if (!typearg->is<IR::Type_StructLike>() && !typearg->is<IR::Type_Tuple>())
-        return statement;
+        return nullptr;
 
-    int width = typearg->width_bits();
-    if (width <= 0) {
-        ::error("%1%: type argument of %2% must be a fixed-width type",
-                targ, P4CoreLibrary::instance.packetIn.lookahead.name);
-        return statement;
-    }
+    int width = typeMap->minWidthBits(typearg, expression);
+    if (width < 0)
+        return nullptr;
 
     auto bittype = IR::Type_Bits::get(width);
     auto name = refMap->newName("tmp");
     auto decl = new IR::Declaration_Variable(IR::ID(name), bittype, nullptr);
     newDecls.push_back(decl);
 
-    auto result = new IR::BlockStatement;
     auto ta = new IR::Vector<IR::Type>();
     ta->push_back(bittype);
-    auto mc = new IR::MethodCallExpression(mce->srcInfo, mce->method->clone(), ta, mce->arguments);
+    auto mc = new IR::MethodCallExpression(
+        expression->srcInfo, expression->method->clone(), ta, expression->arguments);
     auto pathe = new IR::PathExpression(name);
-    auto lookupCall = new IR::AssignmentStatement(statement->srcInfo, pathe, mc);
-    result->push_back(lookupCall);
+    auto lookupCall = new IR::AssignmentStatement(expression->srcInfo, pathe, mc);
+    auto result = new ExpansionInfo;
+    result->statement = lookupCall;
+    result->width = (unsigned)width;
+    result->origType = typearg;
+    result->tmp = pathe;
+    return result;
+}
 
-    unsigned offset = width;
-    expandSetValid(statement->left->clone(), typearg, &result->components);
-    auto init = expand(pathe->clone(), typearg, &offset);
-    if (init == nullptr)
+const IR::Node* DoExpandLookahead::postorder(IR::MethodCallStatement* statement) {
+    auto ei = convertLookahead(statement->methodCall);
+    if (ei == nullptr)
         return statement;
-    auto assignment = new IR::AssignmentStatement(statement->srcInfo, statement->left, init);
-    result->push_back(assignment);
+    return ei->statement;
+}
 
+const IR::Node* DoExpandLookahead::postorder(IR::AssignmentStatement* statement) {
+    if (!statement->right->is<IR::MethodCallExpression>())
+        return statement;
+
+    auto ei = convertLookahead(statement->right->to<IR::MethodCallExpression>());
+    if (ei == nullptr)
+        return statement;
+    auto result = new IR::BlockStatement;
+    result->push_back(ei->statement);
+
+    expand(ei->tmp->clone(), ei->origType, &ei->width,
+        statement->left->clone(), &result->components);
     return result;
 }
 

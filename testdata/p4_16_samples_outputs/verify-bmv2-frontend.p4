@@ -2,6 +2,7 @@ error {
     NewError
 }
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct m {
@@ -12,7 +13,7 @@ struct h {
 }
 
 parser MyParser(packet_in b, out h hdr, inout m meta, inout standard_metadata_t std) {
-    error e_0;
+    @name("MyParser.e") error e_0;
     state start {
         verify(meta.x == 8s0, error.NewError);
         verify(true, error.NoError);

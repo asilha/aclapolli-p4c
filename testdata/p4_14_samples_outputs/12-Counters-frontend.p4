@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header ethernet_t {
@@ -27,37 +28,38 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
     }
 }
 
+@name(".c1") counter<bit<10>>(32w1024, CounterType.packets) c1;
+
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
     }
-    @name(".c1") counter(32w1024, CounterType.packets) c1_0;
     @name(".count_c1_1") action count_c1_0() {
-        c1_0.count(32w1);
+        c1.count(10w1);
     }
-    @name(".count_c1_1") action count_c1_2() {
-        c1_0.count(32w1);
+    @name(".count_c1_1") action count_c1_1() {
+        c1.count(10w1);
     }
     @name(".t1") table t1_0 {
         actions = {
             count_c1_0();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
         key = {
             hdr.ethernet.dstAddr: exact @name("ethernet.dstAddr") ;
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     @name(".t2") table t2_0 {
         actions = {
-            count_c1_2();
-            @defaultonly NoAction_3();
+            count_c1_1();
+            @defaultonly NoAction_2();
         }
         key = {
             hdr.ethernet.srcAddr: exact @name("ethernet.srcAddr") ;
         }
-        default_action = NoAction_3();
+        default_action = NoAction_2();
     }
     apply {
         t1_0.apply();

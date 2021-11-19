@@ -19,6 +19,37 @@ limitations under the License.
 
 namespace P4 {
 
+bool TypeMap::typeIsEmpty(const IR::Type* type) const {
+    if (auto bt = type->to<IR::Type_Bits>()) {
+        return bt->size == 0;
+    } else if (auto vt = type->to<IR::Type_Varbits>()) {
+        return vt->size == 0;
+    } else if (auto tt = type->to<IR::Type_Tuple>()) {
+        if (tt->getSize() == 0)
+            return true;
+        for (auto ft : tt->components) {
+            auto t = getTypeType(ft, true);
+            if (!typeIsEmpty(t))
+                return false;
+        }
+        return true;
+    } else if (auto ts = type->to<IR::Type_Stack>()) {
+        if (!ts->sizeKnown())
+            return false;
+        return ts->getSize() == 0;
+    } else if (auto tst = type->to<IR::Type_Struct>()) {
+        if (tst->fields.size() == 0)
+            return true;
+        for (auto f : tst->fields) {
+            auto t = getTypeType(f->type, true);
+            if (!typeIsEmpty(t))
+                return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 void TypeMap::dbprint(std::ostream& out) const {
     out << "TypeMap for " << dbp(program) << std::endl;
     for (auto it : typeMap)
@@ -48,6 +79,17 @@ bool TypeMap::isCompileTimeConstant(const IR::Expression* expression) const {
     bool result = constants.find(expression) != constants.end();
     LOG3(dbp(expression) << (result ? " constant" : " not constant"));
     return result;
+}
+
+// Method copies properties from expression to "to" expression.
+void TypeMap::cloneExpressionProperties(const IR::Expression* to,
+                                        const IR::Expression* from) {
+    auto type = getType(from, true);
+    setType(to, type);
+    if (isLeftValue(from))
+        setLeftValue(to);
+    if (isCompileTimeConstant(from))
+        setCompileTimeConstant(to);
 }
 
 void TypeMap::clear() {
@@ -80,9 +122,8 @@ const IR::Type* TypeMap::getType(const IR::Node* element, bool notNull) const {
     CHECK_NULL(element);
     auto result = get(typeMap, element);
     LOG4("Looking up type for " << dbp(element) << " => " << dbp(result));
-    if (notNull && result == nullptr) {
-        BUG("Could not find type for %1%", dbp(element));
-    }
+    if (notNull && result == nullptr)
+        BUG_CHECK(errorCount() > 0, "Could not find type for %1%", dbp(element));
     if (result != nullptr && result->is<IR::Type_Name>())
         BUG("%1% in map", dbp(result));
     return result;
@@ -116,24 +157,24 @@ bool TypeMap::equivalent(const IR::Type* left, const IR::Type* right) {
     // Below we are sure that it's the same Node class
     if (left->is<IR::Type_Base>() || left->is<IR::Type_Newtype>())
         return *left == *right;
-    if (left->is<IR::Type_Type>())
-        return equivalent(left->to<IR::Type_Type>()->type, right->to<IR::Type_Type>()->type);
+    if (auto tt = left->to<IR::Type_Type>())
+        return equivalent(tt->type, right->to<IR::Type_Type>()->type);
     if (left->is<IR::Type_Error>())
         return true;
-    if (left->is<IR::ITypeVar>()) {
-        auto lv = left->to<IR::ITypeVar>();
+    if (auto lv = left->to<IR::ITypeVar>()) {
         auto rv = right->to<IR::ITypeVar>();
         return lv->getVarName() == rv->getVarName() && lv->getDeclId() == rv->getDeclId();
     }
-    if (left->is<IR::Type_Stack>()) {
-        auto ls = left->to<IR::Type_Stack>();
+    if (auto ls = left->to<IR::Type_Stack>()) {
         auto rs = right->to<IR::Type_Stack>();
         if (!ls->sizeKnown()) {
-            ::error("%1%: Size of header stack type should be a constant", left);
+            ::error(ErrorType::ERR_TYPE_ERROR,
+                    "%1%: Size of header stack type should be a constant", left);
             return false;
         }
         if (!rs->sizeKnown()) {
-            ::error("%1%: Size of header stack type should be a constant", right);
+            ::error(ErrorType::ERR_TYPE_ERROR,
+                    "%1%: Size of header stack type should be a constant", right);
             return false;
         }
         return equivalent(ls->elementType, rs->elementType) &&
@@ -147,9 +188,12 @@ bool TypeMap::equivalent(const IR::Type* left, const IR::Type* right) {
         auto re = right->to<IR::Type_SerEnum>();
         return le->name == re->name;
     }
-    if (left->is<IR::Type_StructLike>()) {
-        auto sl = left->to<IR::Type_StructLike>();
+    if (auto sl = left->to<IR::Type_StructLike>()) {
         auto sr = right->to<IR::Type_StructLike>();
+        if (sl->name != sr->name &&
+            !sl->is<IR::Type_UnknownStruct>() &&
+            !sr->is<IR::Type_UnknownStruct>())
+            return false;
         if (sl->fields.size() != sr->fields.size())
             return false;
         for (size_t i = 0; i < sl->fields.size(); i++) {
@@ -162,8 +206,7 @@ bool TypeMap::equivalent(const IR::Type* left, const IR::Type* right) {
         }
         return true;
     }
-    if (left->is<IR::Type_Tuple>()) {
-        auto lt = left->to<IR::Type_Tuple>();
+    if (auto lt = left->to<IR::Type_Tuple>()) {
         auto rt = right->to<IR::Type_Tuple>();
         if (lt->components.size() != rt->components.size())
             return false;
@@ -175,13 +218,23 @@ bool TypeMap::equivalent(const IR::Type* left, const IR::Type* right) {
         }
         return true;
     }
-    if (left->is<IR::Type_Set>()) {
-        auto lt = left->to<IR::Type_Set>();
+    if (auto lt = left->to<IR::Type_List>()) {
+        auto rt = right->to<IR::Type_List>();
+        if (lt->components.size() != rt->components.size())
+            return false;
+        for (size_t i = 0; i < lt->components.size(); i++) {
+            auto l = lt->components.at(i);
+            auto r = rt->components.at(i);
+            if (!equivalent(l, r))
+                return false;
+        }
+        return true;
+    }
+    if (auto lt = left->to<IR::Type_Set>()) {
         auto rt = right->to<IR::Type_Set>();
         return equivalent(lt->elementType, rt->elementType);
     }
-    if (left->is<IR::Type_Package>()) {
-        auto lp = left->to<IR::Type_Package>();
+    if (auto lp = left->to<IR::Type_Package>()) {
         auto rp = right->to<IR::Type_Package>();
         // The following gets into an infinite loop, since the return type of the
         // constructor is the Type_Package itself.
@@ -210,17 +263,15 @@ bool TypeMap::equivalent(const IR::Type* left, const IR::Type* right) {
         }
         return true;
     }
-    if (left->is<IR::IApply>()) {
-        return equivalent(left->to<IR::IApply>()->getApplyMethodType(),
+    if (auto a = left->to<IR::IApply>()) {
+        return equivalent(a->getApplyMethodType(),
                           right->to<IR::IApply>()->getApplyMethodType());
     }
-    if (left->is<IR::Type_SpecializedCanonical>()) {
-        auto ls = left->to<IR::Type_SpecializedCanonical>();
+    if (auto ls = left->to<IR::Type_SpecializedCanonical>()) {
         auto rs = right->to<IR::Type_SpecializedCanonical>();
         return equivalent(ls->substituted, rs->substituted);
     }
-    if (left->is<IR::Type_ActionEnum>()) {
-        auto la = left->to<IR::Type_ActionEnum>();
+    if (auto la = left->to<IR::Type_ActionEnum>()) {
         auto ra = right->to<IR::Type_ActionEnum>();
         return la->actionList == ra->actionList;  // pointer comparison
     }
@@ -249,25 +300,26 @@ bool TypeMap::equivalent(const IR::Type* left, const IR::Type* right) {
         }
         return true;
     }
-    if (left->is<IR::Type_Extern>()) {
-        auto le = left->to<IR::Type_Extern>();
+    if (auto le = left->to<IR::Type_Extern>()) {
         auto re = right->to<IR::Type_Extern>();
         return le->name == re->name;
     }
 
-    BUG("%1%: Unexpected type check for equivalence", dbp(left));
+    BUG_CHECK(::errorCount(), "%1%: Unexpected type check for equivalence", dbp(left));
     // The following are not expected to be compared for equivalence:
     // Type_Dontcare, Type_Unknown, Type_Name, Type_Specialized, Type_Typedef
+    return false;
 }
 
 bool TypeMap::implicitlyConvertibleTo(const IR::Type* from, const IR::Type* to) {
     if (TypeMap::equivalent(from, to))
         return true;
-    // We allow implicit casts from tuples to structs
-    if (from->is<IR::Type_StructLike>()) {
-        if (to->is<IR::Type_Tuple>()) {
-            auto sl = from->to<IR::Type_StructLike>();
-            auto rt = to->to<IR::Type_Tuple>();
+    if (from->is<IR::Type_InfInt>() && to->is<IR::Type_InfInt>())
+        // this case is not caught by the equivalence check
+        return true;
+    if (auto rt = to->to<IR::Type_BaseList>()) {
+        if (auto sl = from->to<IR::Type_StructLike>()) {
+            // We allow implicit casts from list types to structs
             if (sl->fields.size() != rt->components.size())
                 return false;
             for (size_t i = 0; i < rt->components.size(); i++) {
@@ -277,13 +329,23 @@ bool TypeMap::implicitlyConvertibleTo(const IR::Type* from, const IR::Type* to) 
                     return false;
             }
             return true;
+        } else if (auto sl = from->to<IR::Type_Tuple>()) {
+            // We allow implicit casts from list types to tuples
+            if (sl->components.size() != rt->components.size())
+                return false;
+            for (size_t i = 0; i < rt->components.size(); i++) {
+                auto f = sl->components.at(i);
+                auto r = rt->components.at(i);
+                if (!TypeMap::implicitlyConvertibleTo(f, r))
+                    return false;
+            }
+            return true;
         }
     }
     return false;
 }
 
-
-// Used for tuples and stacks only
+// Used for tuples, stacks and lists only
 const IR::Type* TypeMap::getCanonical(const IR::Type* type) {
     // Currently a linear search; hopefully this won't be too expensive in practice
     std::vector<const IR::Type*>* searchIn;
@@ -291,6 +353,8 @@ const IR::Type* TypeMap::getCanonical(const IR::Type* type) {
         searchIn = &canonicalStacks;
     else if (type->is<IR::Type_Tuple>())
         searchIn = &canonicalTuples;
+    else if (type->is<IR::Type_List>())
+        searchIn = &canonicalLists;
     else
         BUG("%1%: unexpected type", type);
 
@@ -302,5 +366,39 @@ const IR::Type* TypeMap::getCanonical(const IR::Type* type) {
     return type;
 }
 
+int TypeMap::minWidthBits(const IR::Type* type, const IR::Node* errorPosition) {
+    CHECK_NULL(type);
+    auto t = getTypeType(type, true);
+    if (auto tb = t->to<IR::Type_Bits>()) {
+        return tb->width_bits();
+    } else if (auto ts = t->to<IR::Type_StructLike>()) {
+        int result = 0;
+        bool isUnion = t->is<IR::Type_HeaderUnion>();
+        for (auto f : ts->fields) {
+            int w = minWidthBits(f->type, errorPosition);
+            if (w < 0)
+                return w;
+            if (isUnion)
+                result = std::max(w, result);
+            else
+                result = result + w;
+        }
+        return result;
+    } else if (auto ths = t->to<IR::Type_Stack>()) {
+        auto w = minWidthBits(ths->elementType, errorPosition);
+        return w * ths->getSize();
+    } else if (auto te = t->to<IR::Type_SerEnum>()) {
+        return minWidthBits(te->type, errorPosition);
+    } else if (t->is<IR::Type_Boolean>()) {
+        return 1;
+    } else if (auto tnt = t->to<IR::Type_Newtype>()) {
+        return minWidthBits(tnt->type, errorPosition);
+    } else if (type->is<IR::Type_Varbits>()) {
+        return 0;
+    }
+
+    ::error(ErrorType::ERR_UNSUPPORTED, "%1%: width not well-defined", errorPosition);
+    return -1;
+}
 
 }  // namespace P4

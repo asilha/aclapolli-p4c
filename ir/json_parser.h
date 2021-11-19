@@ -7,6 +7,7 @@
 #include "lib/cstring.h"
 #include "lib/gmputil.h"
 #include "lib/ordered_map.h"
+#include "lib/source_file.h"
 
 class JsonData {
  public:
@@ -22,9 +23,9 @@ class JsonData {
 
 class JsonNumber : public JsonData {
  public:
-    JsonNumber(mpz_class v) : val(v) {}   // NOLINT(runtime/explicit)
-    operator int() const { return val.get_si(); }  // Does not handle overflow
-    mpz_class val;
+    JsonNumber(big_int v) : val(v) {}   // NOLINT(runtime/explicit)
+    operator int() const { return int(val); }  // Does not handle overflow
+    big_int val;
 };
 
 class JsonBoolean : public JsonData {
@@ -56,12 +57,22 @@ class JsonVector : public JsonData, public std::vector<JsonData*> {
 };
 
 class JsonObject : public JsonData, public ordered_map<std::string, JsonData*>  {
+    bool _hasSrcInfo = true;
  public:
+    JsonObject() {}
+    JsonObject(const JsonObject& obj) = default;
     JsonObject &operator=(JsonObject&&) & = default;
     JsonObject(const ordered_map<std::string, JsonData*> & v)  // NOLINT(runtime/explicit)
     : ordered_map<std::string, JsonData*>(v) {}
     int get_id() const;
     std::string get_type() const;
+    std::string get_filename() const;
+    std::string get_sourceFragment() const;
+    int get_line() const;
+    int get_column() const;
+    JsonObject get_sourceJson() const;
+    bool hasSrcInfo() { return _hasSrcInfo; }
+    void setSrcInfo(bool value) { _hasSrcInfo = value; }
 };
 
 class JsonNull : public JsonData {};

@@ -1,22 +1,23 @@
 control c(out bit<16> b) {
-    bit<16> tmp;
+    @name("c.left_0") bit<16> left;
+    @name("c.right_0") bit<16> right;
+    @name("c.hasReturned") bool hasReturned;
+    @name("c.retval") bit<16> retval;
     apply {
-        {
-            bit<16> left_0 = 16w10;
-            bit<16> right_0 = 16w12;
-            bool hasReturned = false;
-            bit<16> retval;
-            if (left_0 > right_0) {
-                hasReturned = true;
-                retval = left_0;
-            }
-            if (!hasReturned) {
-                hasReturned = true;
-                retval = right_0;
-            }
-            tmp = retval;
+        left = 16w10;
+        right = 16w12;
+        hasReturned = false;
+        if (left > right) {
+            hasReturned = true;
+            retval = left;
         }
-        b = tmp;
+        if (hasReturned) {
+            ;
+        } else {
+            hasReturned = true;
+            retval = right;
+        }
+        b = retval;
     }
 }
 

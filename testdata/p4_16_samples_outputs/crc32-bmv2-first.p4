@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header ethernet_t {
@@ -93,7 +94,7 @@ control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadat
         send_back(nselect);
     }
     action operation_drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     table calculate {
         key = {
@@ -111,25 +112,19 @@ control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadat
         const default_action = operation_drop();
         const entries = {
                         8w0x2b : operation_add();
-
                         8w0x2d : operation_sub();
-
                         8w0x26 : operation_and();
-
                         8w0x7c : operation_or();
-
                         8w0x5e : operation_xor();
-
                         8w0x3e : operation_crc();
-
         }
-
     }
     apply {
-        if (hdr.p4calc.isValid()) 
+        if (hdr.p4calc.isValid()) {
             calculate.apply();
-        else 
+        } else {
             operation_drop();
+        }
     }
 }
 

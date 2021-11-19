@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <boost/optional.hpp>
-
 #include <sstream>  // for std::ostringstream
+
+#include <boost/optional.hpp>
 
 #include "frontends/common/resolveReferences/referenceMap.h"
 // TODO(antonin): this include should go away when we cleanup getTableSize
@@ -28,6 +28,8 @@ limitations under the License.
 #include "ir/ir.h"
 
 #include "p4RuntimeArchHandler.h"
+
+namespace p4configv1 = ::p4::config::v1;
 
 namespace P4 {
 
@@ -47,7 +49,8 @@ getExternInstanceFromProperty(const IR::P4Table* table,
     auto property = table->properties->getProperty(propertyName);
     if (property == nullptr) return boost::none;
     if (!property->value->is<IR::ExpressionValue>()) {
-        ::error("Expected %1% property value for table %2% to be an expression: %3%",
+        ::error(ErrorType::ERR_EXPECTED,
+                "Expected %1% property value for table %2% to be an expression: %3%",
                 propertyName, table->controlPlaneName(), property);
         return boost::none;
     }
@@ -56,14 +59,16 @@ getExternInstanceFromProperty(const IR::P4Table* table,
     if (isConstructedInPlace) *isConstructedInPlace = expr->is<IR::ConstructorCallExpression>();
     if (expr->is<IR::ConstructorCallExpression>()
         && property->getAnnotation(IR::Annotation::nameAnnotation) == nullptr) {
-        ::error("Table '%1%' has an anonymous table property '%2%' with no name annotation, "
+        ::error(ErrorType::ERR_UNSUPPORTED,
+                "Table '%1%' has an anonymous table property '%2%' with no name annotation, "
                 "which is not supported by P4Runtime", table->controlPlaneName(), propertyName);
         return boost::none;
     }
     auto name = property->controlPlaneName();
     auto externInstance = ExternInstance::resolve(expr, refMap, typeMap, name);
     if (!externInstance) {
-        ::error("Expected %1% property value for table %2% to resolve to an "
+        ::error(ErrorType::ERR_INVALID,
+                "Expected %1% property value for table %2% to resolve to an "
                 "extern instance: %3%", propertyName, table->controlPlaneName(),
                 property);
         return boost::none;
@@ -77,7 +82,8 @@ bool isExternPropertyConstructedInPlace(const IR::P4Table* table,
     auto property = table->properties->getProperty(propertyName);
     if (property == nullptr) return false;
     if (!property->value->is<IR::ExpressionValue>()) {
-        ::error("Expected %1% property value for table %2% to be an expression: %3%",
+        ::error(ErrorType::ERR_EXPECTED,
+                "Expected %1% property value for table %2% to be an expression: %3%",
                 propertyName, table->controlPlaneName(), property);
         return false;
     }
@@ -99,13 +105,15 @@ int64_t getTableSize(const IR::P4Table* table) {
     }
 
     if (!sizeProperty->value->is<IR::ExpressionValue>()) {
-        ::error("Expected an expression for table size property: %1%", sizeProperty);
+        ::error(ErrorType::ERR_EXPECTED,
+                "Expected an expression for table size property: %1%", sizeProperty);
         return defaultTableSize;
     }
 
     auto expression = sizeProperty->value->to<IR::ExpressionValue>()->expression;
     if (!expression->is<IR::Constant>()) {
-        ::error("Expected a constant for table size property: %1%", sizeProperty);
+        ::error(ErrorType::ERR_EXPECTED,
+                "Expected a constant for table size property: %1%", sizeProperty);
         return defaultTableSize;
     }
 
@@ -113,45 +121,69 @@ int64_t getTableSize(const IR::P4Table* table) {
     return tableSize == 0 ? defaultTableSize : tableSize;
 }
 
-static std::string serializeAnnotationExpression(const IR::Expression* expr) {
-    // Using the ToP4 inspector seems to be giving slightly better results than
-    // toString(). However, the type checker is run on annotation expressions
-    // which is why most of the time a string literal is used, in which case
-    // there is probably no difference between toString() and ToP4.
+std::string serializeOneAnnotation(const IR::Annotation* annotation) {
+    // we do not need custom serialization logic here: the P4Info should include
+    // the annotation as it was in P4.
     std::ostringstream oss;
     ToP4 top4(&oss, false);
-    expr->apply(top4);
-    return oss.str();
+    annotation->apply(top4);
+    auto serializedAnnnotation = oss.str();
+    // remove the whitespace added by ToP4.
+    serializedAnnnotation.pop_back();
+    return serializedAnnnotation;
 }
 
-std::string serializeOneAnnotation(const IR::Annotation* annotation) {
-    std::string serializedAnnotation = "@" + annotation->name + "(";
-    auto expressions = annotation->expr;
-    for (size_t i = 0; i < expressions.size(); ++i) {
-        serializedAnnotation.append(serializeAnnotationExpression(expressions[i]));
-        if (i + 1 < expressions.size()) serializedAnnotation.append(", ");
+void serializeStructuredExpression(const IR::Expression* expr, p4configv1::Expression *sExpr) {
+    BUG_CHECK(expr->is<IR::Literal>(),
+              "%1%: structured annotation expression should be a literal", expr);
+    if (expr->is<IR::Constant>()) {
+        auto *constant = expr->to<IR::Constant>();
+        if (!constant->fitsInt64()) {
+            ::error(ErrorType::ERR_OVERLIMIT,
+                    "%1%: integer literal in structured annotation must fit in int64, "
+                    "consider using a string literal for larger values",
+                    expr);
+            return;
+        }
+        sExpr->set_int64_value(constant->asInt64());
+    } else if (expr->is<IR::BoolLiteral>()) {
+        sExpr->set_bool_value(expr->to<IR::BoolLiteral>()->value);
+    } else if (expr->is<IR::StringLiteral>()) {
+        sExpr->set_string_value(expr->to<IR::StringLiteral>()->value);
+    } else {
+        // guaranteed by the type checker.
+        BUG("%1%: structured annotation expression must be a compile-time value", expr);
     }
-    auto kvs = annotation->kv;
-    if (expressions.size() > 0 && kvs.size() > 0) serializedAnnotation.append(", ");
-    for (auto it = kvs.begin(); it != kvs.end();) {
-        serializedAnnotation.append((*it)->name.name);
-        serializedAnnotation.append("=");
-        serializedAnnotation.append(serializeAnnotationExpression((*it)->expression));
-        if (++it != kvs.end()) serializedAnnotation.append(", ");
-    }
-    serializedAnnotation.append(")");
-
-    return serializedAnnotation;
 }
 
-void setPreamble(::p4::config::v1::Preamble* preamble,
-                 p4rt_id_t id, cstring name, cstring alias, const IR::IAnnotated* annotated) {
-    CHECK_NULL(preamble);
-    preamble->set_id(id);
-    preamble->set_name(name);
-    preamble->set_alias(alias);
-    addAnnotations(preamble, annotated);
-    addDocumentation(preamble, annotated);
+void serializeStructuredKVPair(const IR::NamedExpression* kv, p4configv1::KeyValuePair *sKV) {
+    sKV->set_key(kv->name.name);
+    serializeStructuredExpression(kv->expression, sKV->mutable_value());
+}
+
+void serializeOneStructuredAnnotation(
+    const IR::Annotation* annotation,
+    p4configv1::StructuredAnnotation* structuredAnnotation) {
+    structuredAnnotation->set_name(annotation->name.name);
+    switch (annotation->annotationKind()) {
+        case IR::Annotation::Kind::StructuredEmpty:
+            // nothing to do, body oneof should be empty.
+            return;
+        case IR::Annotation::Kind::StructuredExpressionList:
+            for (auto* expr : annotation->expr) {
+                serializeStructuredExpression(
+                    expr, structuredAnnotation->mutable_expression_list()->add_expressions());
+            }
+            return;
+        case IR::Annotation::Kind::StructuredKVList:
+            for (auto* kv : annotation->kv) {
+                serializeStructuredKVPair(
+                    kv, structuredAnnotation->mutable_kv_pair_list()->add_kv_pairs());
+            }
+            return;
+        default:
+            BUG("%1%: not a structured annotation", annotation);
+    }
 }
 
 }  // namespace Helpers

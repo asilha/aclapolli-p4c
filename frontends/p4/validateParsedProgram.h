@@ -38,7 +38,6 @@ namespace P4 {
    - tables have an actions property
    - table entries lists are const
    - instantiations appear at the top-level only
-   - switch statements do not occur in actions
    - the default label of a switch statement appears last
    - instantiations do not occur in actions
    - constructors are not invoked in actions
@@ -59,6 +58,7 @@ class ValidateParsedProgram final : public Inspector {
  public:
     ValidateParsedProgram()
     { setName("ValidateParsedProgram"); }
+    void postorder(const IR::Annotations* annotations) override;
     void postorder(const IR::P4Program* program) override;
     void postorder(const IR::Constant* c) override;
     void postorder(const IR::SwitchStatement* statement) override;

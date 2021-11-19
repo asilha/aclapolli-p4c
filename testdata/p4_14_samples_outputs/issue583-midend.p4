@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct routing_metadata_t {
@@ -93,8 +94,7 @@ header vlan_tag_t {
 }
 
 struct metadata {
-    @name(".routing_metadata") 
-    routing_metadata_t routing_metadata;
+    bit<1> _routing_metadata_drop0;
 }
 
 struct headers {
@@ -176,7 +176,7 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
         }
     }
     @name(".start") state start {
-        meta.routing_metadata.drop = 1w0;
+        meta._routing_metadata_drop0 = 1w0;
         transition parse_ethernet;
     }
     state noMatch {
@@ -190,42 +190,43 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
     }
 }
 
+@name(".cnt1") counter<bit<5>>(32w32, CounterType.packets) cnt1;
+
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
     }
-    @name(".cnt1") counter(32w32, CounterType.packets) cnt1_0;
     @name(".drop_pkt") action drop_pkt() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
-    @name(".hop_ipv4") action hop_ipv4(bit<9> egress_spec) {
-        standard_metadata.egress_spec[8:0] = egress_spec[8:0];
+    @name(".hop_ipv4") action hop_ipv4(@name("egress_spec") bit<9> egress_spec_0) {
+        standard_metadata.egress_spec = egress_spec_0;
         hdr.ipv4.ttl = hdr.ipv4.ttl + 8w255;
     }
     @name(".act") action act() {
-        cnt1_0.count(32w10);
+        cnt1.count(5w10);
     }
     @name(".ipv4_routing") table ipv4_routing_0 {
         actions = {
             drop_pkt();
             hop_ipv4();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
         key = {
             hdr.ipv4.dstAddr: lpm @name("ipv4.dstAddr") ;
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     @name(".table_2") table table_0 {
         actions = {
             act();
-            @defaultonly NoAction_3();
+            @defaultonly NoAction_2();
         }
         key = {
             hdr.ipv4.dstAddr: lpm @name("ipv4.dstAddr") ;
         }
-        default_action = NoAction_3();
+        default_action = NoAction_2();
     }
     apply {
         ipv4_routing_0.apply();

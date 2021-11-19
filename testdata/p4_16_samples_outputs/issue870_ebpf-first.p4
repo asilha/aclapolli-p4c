@@ -46,7 +46,7 @@ parser prs(packet_in p, out Headers_t headers) {
 control pipe(inout Headers_t headers, out bool pass) {
     action Reject(IPv4Address add) {
         pass = false;
-        headers.ipv4.srcAddr[31:0] = add[31:16] ++ add[15:0];
+        headers.ipv4.srcAddr = add[31:16] ++ add[15:0];
     }
     table Check_src_ip {
         key = {
@@ -61,7 +61,9 @@ control pipe(inout Headers_t headers, out bool pass) {
     }
     apply {
         pass = true;
-        if (!headers.ipv4.isValid()) {
+        if (headers.ipv4.isValid()) {
+            ;
+        } else {
             pass = false;
             return;
         }

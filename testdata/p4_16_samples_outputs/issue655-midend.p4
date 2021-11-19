@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header H {
@@ -27,17 +28,17 @@ parser parserI(packet_in pkt, out Parsed_packet hdr, inout Metadata meta, inout 
 }
 
 control cIngress(inout Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
-    @hidden action act() {
+    @hidden action issue655l32() {
         hdr.h.d = hdr.h.d + 16w1;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue655l32 {
         actions = {
-            act();
+            issue655l32();
         }
-        const default_action = act();
+        const default_action = issue655l32();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue655l32.apply();
     }
 }
 
@@ -47,18 +48,18 @@ control cEgress(inout Parsed_packet hdr, inout Metadata meta, inout standard_met
 }
 
 struct tuple_0 {
-    bit<16> field;
+    bit<16> f0;
 }
 
 control vc(inout Parsed_packet hdr, inout Metadata meta) {
     apply {
-        verify_checksum<tuple_0, bit<16>>(true, { hdr.h.d }, hdr.h.c, HashAlgorithm.csum16);
+        verify_checksum<tuple_0, bit<16>>(true, (tuple_0){f0 = hdr.h.d}, hdr.h.c, HashAlgorithm.csum16);
     }
 }
 
 control uc(inout Parsed_packet hdr, inout Metadata meta) {
     apply {
-        update_checksum<tuple_0, bit<16>>(true, { hdr.h.d }, hdr.h.c, HashAlgorithm.csum16);
+        update_checksum<tuple_0, bit<16>>(true, (tuple_0){f0 = hdr.h.d}, hdr.h.c, HashAlgorithm.csum16);
     }
 }
 

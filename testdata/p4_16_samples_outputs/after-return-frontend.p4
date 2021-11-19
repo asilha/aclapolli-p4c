@@ -1,12 +1,14 @@
 control ctrl() {
-    bit<32> a_0;
+    @name("ctrl.a") bit<32> a_0;
+    @name("ctrl.hasReturned") bool hasReturned;
     apply {
-        bool hasReturned = false;
+        hasReturned = false;
         a_0 = 32w0;
-        if (a_0 == 32w0) 
+        if (a_0 == 32w0) {
             hasReturned = true;
-        else 
+        } else {
             hasReturned = true;
+        }
     }
 }
 

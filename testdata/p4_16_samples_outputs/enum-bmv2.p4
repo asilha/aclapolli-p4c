@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header hdr {
@@ -15,10 +16,11 @@ enum Choice {
 control compute(inout hdr h) {
     apply {
         Choice c = Choice.First;
-        if (c == Choice.Second) 
+        if (c == Choice.Second) {
             h.c = h.a;
-        else 
+        } else {
             h.c = h.b;
+        }
     }
 }
 

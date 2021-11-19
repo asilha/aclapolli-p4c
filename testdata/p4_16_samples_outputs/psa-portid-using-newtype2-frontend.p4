@@ -1,8 +1,8 @@
 #include <core.p4>
 
 typedef bit<9> PortIdUInt_t;
-@p4runtime_translate("port") type bit<9> PortId_t;
-@p4runtime_translate("port") type bit<32> PortIdInHeader_t;
+type bit<9> PortId_t;
+type bit<32> PortIdInHeader_t;
 match_kind {
     range,
     selector
@@ -163,9 +163,9 @@ control FabricIngress(inout parsed_headers_t hdr, inout fabric_metadata_t fabric
     }
     @name(".nop") action nop() {
     }
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
     }
     @name("FabricIngress.filtering.t") table filtering_t {
         key = {
@@ -178,7 +178,7 @@ control FabricIngress(inout parsed_headers_t hdr, inout fabric_metadata_t fabric
         }
         default_action = NoAction_0();
     }
-    PortId_t forwarding_mask;
+    @name("FabricIngress.forwarding.mask") PortId_t forwarding_mask;
     @name("FabricIngress.forwarding.fwd") action forwarding_fwd_0(PortId_t next_port) {
         standard_metadata.egress_spec = next_port;
     }

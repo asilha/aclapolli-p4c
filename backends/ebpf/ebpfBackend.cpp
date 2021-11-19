@@ -32,7 +32,9 @@ void run_ebpf_backend(const EbpfOptions& options, const IR::ToplevelBlock* tople
 
     auto main = toplevel->getMain();
     if (main == nullptr) {
-        ::warning("Could not locate top-level block; is there a %1% module?", IR::P4Program::main);
+        ::warning(ErrorType::WARN_MISSING,
+                  "Could not locate top-level block; is there a %1% module?",
+                  IR::P4Program::main);
         return;
     }
 
@@ -44,7 +46,8 @@ void run_ebpf_backend(const EbpfOptions& options, const IR::ToplevelBlock* tople
     } else if (options.target == "test") {
         target = new TestTarget();
     } else {
-        ::error("Unknown target %s; legal choices are 'bcc', 'kernel', and test", options.target);
+        ::error(ErrorType::ERR_UNKNOWN,
+                "Unknown target %s; legal choices are 'bcc', 'kernel', and test", options.target);
         return;
     }
 

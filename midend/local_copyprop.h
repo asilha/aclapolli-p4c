@@ -19,6 +19,7 @@ limitations under the License.
 #include "ir/ir.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
 #include "frontends/common/resolveReferences/referenceMap.h"
+#include "has_side_effects.h"
 
 namespace P4 {
 
@@ -49,6 +50,8 @@ if legal to do so.
 
  */
 class DoLocalCopyPropagation : public ControlFlowVisitor, Transform, P4WriteContext {
+    ReferenceMap                *refMap;
+    TypeMap                     *typeMap;
     bool                        working = false;
     struct VarInfo {
         bool                    local = false;
@@ -62,6 +65,13 @@ class DoLocalCopyPropagation : public ControlFlowVisitor, Transform, P4WriteCont
     };
     struct FuncInfo {
         std::set<cstring>       reads, writes;
+        int                     apply_count = 0;
+
+        /// This field is used in assignments. If is_first_write_insert is true, then the
+        /// last inserted expression into the writes set was not in that set before. In
+        /// that case, that expression will be removed from it if, after propagation of the
+        /// values on the left and the right side, the assignment becomes a self-assignment
+        bool                    is_first_write_insert = false;
     };
     std::map<cstring, VarInfo>          available;
     std::map<cstring, TableInfo>        &tables;
@@ -72,12 +82,15 @@ class DoLocalCopyPropagation : public ControlFlowVisitor, Transform, P4WriteCont
     FuncInfo                            *inferForFunc = nullptr;
     bool                                need_key_rewrite = false;
     std::function<bool(const Context *, const IR::Expression *)> policy;
+    bool                                elimUnusedTables = false;
 
     DoLocalCopyPropagation *clone() const override { return new DoLocalCopyPropagation(*this); }
     void flow_merge(Visitor &) override;
     bool name_overlap(cstring, cstring);
     void forOverlapAvail(cstring, std::function<void(cstring, VarInfo *)>);
     void dropValuesUsing(cstring);
+    bool hasSideEffects(const IR::Expression *e) {
+        return bool(::hasSideEffects(refMap, typeMap, e)); }
 
     void visit_local_decl(const IR::Declaration_Variable *);
     const IR::Node *postorder(IR::Declaration_Variable *) override;
@@ -103,29 +116,32 @@ class DoLocalCopyPropagation : public ControlFlowVisitor, Transform, P4WriteCont
     const IR::P4Parser *postorder(IR::P4Parser *) override;
     IR::ParserState *preorder(IR::ParserState *) override;
     IR::ParserState *postorder(IR::ParserState *) override;
+    Visitor::profile_t init_apply(const IR::Node* node) override;
     class ElimDead;
     class RewriteTableKeys;
 
     DoLocalCopyPropagation(const DoLocalCopyPropagation &) = default;
 
  public:
-    explicit DoLocalCopyPropagation(
-        std::function<bool(const Context *, const IR::Expression *)> policy)
-    : tables(*new std::map<cstring, TableInfo>), actions(*new std::map<cstring, FuncInfo>),
-      methods(*new std::map<cstring, FuncInfo>), states(*new std::map<cstring, FuncInfo>),
-      policy(policy)
-    { setName("DoLocalCopyPropagation"); }
+    DoLocalCopyPropagation(ReferenceMap* refMap, TypeMap* typeMap,
+        std::function<bool(const Context *, const IR::Expression *)> policy, bool eut)
+    : refMap(refMap), typeMap(typeMap), tables(*new std::map<cstring, TableInfo>),
+      actions(*new std::map<cstring, FuncInfo>), methods(*new std::map<cstring, FuncInfo>),
+      states(*new std::map<cstring, FuncInfo>), policy(policy), elimUnusedTables(eut) {}
 };
 
 class LocalCopyPropagation : public PassManager {
  public:
     LocalCopyPropagation(ReferenceMap* refMap, TypeMap* typeMap,
+        TypeChecking* typeChecking = nullptr,
         std::function<bool(const Context *, const IR::Expression *)> policy =
-            [](const Context *, const IR::Expression *) -> bool { return true; }
+            [](const Context *, const IR::Expression *) -> bool { return true; },
+        bool elimUnusedTables = false
     ) {
-        passes.push_back(new TypeChecking(refMap, typeMap, true));
-        passes.push_back(new DoLocalCopyPropagation(policy));
-        setName("LocalCopyPropagation");
+        if (!typeChecking)
+            typeChecking = new TypeChecking(refMap, typeMap, true);
+        passes.push_back(typeChecking);
+        passes.push_back(new DoLocalCopyPropagation(refMap, typeMap, policy, elimUnusedTables));
     }
 };
 

@@ -3,6 +3,7 @@ error {
     IPv4IncorrectVersion
 }
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<32> IPv4Address;
@@ -53,7 +54,8 @@ struct mystruct1_t {
 }
 
 struct metadata {
-    mystruct1_t mystruct1;
+    bit<4> _mystruct1_a0;
+    bit<4> _mystruct1_b1;
 }
 
 parser parserI(packet_in pkt, out headers hdr, inout metadata meta, inout standard_metadata_t stdmeta) {
@@ -80,50 +82,53 @@ parser parserI(packet_in pkt, out headers hdr, inout metadata meta, inout standa
 }
 
 control cIngress(inout headers hdr, inout metadata meta, inout standard_metadata_t stdmeta) {
-    @hidden action act() {
+    @hidden action checksum3bmv2l130() {
         hdr.ethernet.srcAddr = 48w0xbad;
     }
-    @hidden action act_0() {
+    @hidden action checksum3bmv2l126() {
         stdmeta.egress_spec = 9w0;
     }
-    @hidden action act_1() {
+    @hidden action checksum3bmv2l134() {
         hdr.ethernet.dstAddr = 48w0xbad;
     }
-    @hidden action act_2() {
+    @hidden action checksum3bmv2l141() {
         hdr.ipv4.ttl = hdr.ipv4.ttl |-| 8w1;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_checksum3bmv2l126 {
         actions = {
-            act_0();
+            checksum3bmv2l126();
         }
-        const default_action = act_0();
+        const default_action = checksum3bmv2l126();
     }
-    @hidden table tbl_act_0 {
+    @hidden table tbl_checksum3bmv2l130 {
         actions = {
-            act();
+            checksum3bmv2l130();
         }
-        const default_action = act();
+        const default_action = checksum3bmv2l130();
     }
-    @hidden table tbl_act_1 {
+    @hidden table tbl_checksum3bmv2l134 {
         actions = {
-            act_1();
+            checksum3bmv2l134();
         }
-        const default_action = act_1();
+        const default_action = checksum3bmv2l134();
     }
-    @hidden table tbl_act_2 {
+    @hidden table tbl_checksum3bmv2l141 {
         actions = {
-            act_2();
+            checksum3bmv2l141();
         }
-        const default_action = act_2();
+        const default_action = checksum3bmv2l141();
     }
     apply {
-        tbl_act.apply();
-        if (stdmeta.checksum_error == 1w1) 
-            tbl_act_0.apply();
-        if (stdmeta.parser_error != error.NoError) 
-            tbl_act_1.apply();
-        if (hdr.ipv4.isValid()) 
-            tbl_act_2.apply();
+        tbl_checksum3bmv2l126.apply();
+        if (stdmeta.checksum_error == 1w1) {
+            tbl_checksum3bmv2l130.apply();
+        }
+        if (stdmeta.parser_error != error.NoError) {
+            tbl_checksum3bmv2l134.apply();
+        }
+        if (hdr.ipv4.isValid()) {
+            tbl_checksum3bmv2l141.apply();
+        }
     }
 }
 
@@ -138,22 +143,22 @@ control vc(inout headers hdr, inout metadata meta) {
 }
 
 struct tuple_0 {
-    bit<4>  field;
-    bit<4>  field_0;
-    bit<8>  field_1;
-    bit<16> field_2;
-    bit<16> field_3;
-    bit<3>  field_4;
-    bit<13> field_5;
-    bit<8>  field_6;
-    bit<8>  field_7;
-    bit<32> field_8;
-    bit<32> field_9;
+    bit<4>  f0;
+    bit<4>  f1;
+    bit<8>  f2;
+    bit<16> f3;
+    bit<16> f4;
+    bit<3>  f5;
+    bit<13> f6;
+    bit<8>  f7;
+    bit<8>  f8;
+    bit<32> f9;
+    bit<32> f10;
 }
 
 control uc(inout headers hdr, inout metadata meta) {
     apply {
-        update_checksum<tuple_0, bit<16>>(hdr.ipv4.isValid(), { hdr.ipv4.version, hdr.ipv4.ihl, hdr.ipv4.diffserv, hdr.ipv4.totalLen, hdr.ipv4.identification, hdr.ipv4.flags, hdr.ipv4.fragOffset, hdr.ipv4.ttl, hdr.ipv4.protocol, hdr.ipv4.srcAddr, hdr.ipv4.dstAddr }, hdr.ipv4.hdrChecksum, HashAlgorithm.csum16);
+        update_checksum<tuple_0, bit<16>>(hdr.ipv4.isValid(), (tuple_0){f0 = hdr.ipv4.version,f1 = hdr.ipv4.ihl,f2 = hdr.ipv4.diffserv,f3 = hdr.ipv4.totalLen,f4 = hdr.ipv4.identification,f5 = hdr.ipv4.flags,f6 = hdr.ipv4.fragOffset,f7 = hdr.ipv4.ttl,f8 = hdr.ipv4.protocol,f9 = hdr.ipv4.srcAddr,f10 = hdr.ipv4.dstAddr}, hdr.ipv4.hdrChecksum, HashAlgorithm.csum16);
     }
 }
 

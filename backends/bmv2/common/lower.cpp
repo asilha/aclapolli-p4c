@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "frontends/p4/fromv1.0/v1model.h"
 #include "lower.h"
+#include "frontends/p4/coreLibrary.h"
 #include "frontends/p4/methodInstance.h"
+#include "frontends/p4/fromv1.0/v1model.h"
 #include "lib/gmputil.h"
 
 namespace BMV2 {
@@ -30,14 +31,16 @@ const IR::Expression* LowerExpressions::shift(const IR::Operation_Binary* expres
     auto rhstype = typeMap->getType(rhs, true);
     if (rhstype->is<IR::Type_InfInt>()) {
         auto cst = rhs->to<IR::Constant>();
-        mpz_class maxShift = Util::shift_left(1, LowerExpressions::maxShiftWidth);
+        big_int maxShift = Util::shift_left(1, LowerExpressions::maxShiftWidth);
         if (cst->value > maxShift)
-            ::error("%1%: shift amount limited to %2% on this target", expression, maxShift);
+            ::error(ErrorType::ERR_OVERLIMIT, "%1%: shift amount limited to %2% on this target",
+                    expression, maxShift);
     } else {
         BUG_CHECK(rhstype->is<IR::Type_Bits>(), "%1%: expected a bit<> type", rhstype);
         auto bs = rhstype->to<IR::Type_Bits>();
         if (bs->size > LowerExpressions::maxShiftWidth)
-            ::error("%1%: shift amount limited to %2% bits on this target",
+            ::error(ErrorType::ERR_OVERLIMIT,
+                    "%1%: shift amount limited to %2% bits on this target",
                     expression, LowerExpressions::maxShiftWidth);
     }
     auto ltype = typeMap->getType(getOriginal(), true);
@@ -61,7 +64,7 @@ const IR::Node* LowerExpressions::postorder(IR::Cast* expression) {
     auto srcType = typeMap->getType(expression->expr, true);
     if (destType->is<IR::Type_Boolean>() && srcType->is<IR::Type_Bits>()) {
         auto zero = new IR::Constant(srcType, 0);
-        auto cmp = new IR::Equ(expression->srcInfo, expression->expr, zero);
+        auto cmp = new IR::Neq(expression->srcInfo, expression->expr, zero);
         typeMap->setType(cmp, destType);
         LOG3("Replaced " << expression << " with " << cmp);
         return cmp;
@@ -80,8 +83,8 @@ const IR::Node* LowerExpressions::postorder(IR::Cast* expression) {
 
 const IR::Node* LowerExpressions::postorder(IR::Expression* expression) {
     // Just update the typeMap incrementally.
-    auto type = typeMap->getType(getOriginal(), true);
-    typeMap->setType(expression, type);
+    auto orig = getOriginal<IR::Expression>();
+    typeMap->cloneExpressionProperties(expression, orig);
     return expression;
 }
 
@@ -89,17 +92,28 @@ const IR::Node* LowerExpressions::postorder(IR::Slice* expression) {
     // This is in a RHS expression a[m:l]  ->  (cast)(a >> l)
     int h = expression->getH();
     int l = expression->getL();
+    auto e0type = typeMap->getType(expression->e0, true);
+    BUG_CHECK(e0type->is<IR::Type_Bits>(), "%1%: expected a bit<> type", e0type);
     const IR::Expression* expr;
     if (l != 0) {
         expr = new IR::Shr(expression->e0->srcInfo, expression->e0, new IR::Constant(l));
-        auto e0type = typeMap->getType(expression->e0, true);
         typeMap->setType(expr, e0type);
     } else {
         expr = expression->e0;
     }
-    auto type = IR::Type_Bits::get(h - l + 1);
+
+    // Narrowing cast.
+    auto type = IR::Type_Bits::get(h - l + 1, e0type->to<IR::Type_Bits>()->isSigned);
     auto result = new IR::Cast(expression->srcInfo, type, expr);
     typeMap->setType(result, type);
+
+    // Signedness conversion.
+    if (type->isSigned) {
+        type = IR::Type_Bits::get(h - l + 1, false);
+        result = new IR::Cast(expression->srcInfo, type, result);
+        typeMap->setType(result, type);
+    }
+
     LOG3("Replaced " << expression << " with " << result);
     return result;
 }
@@ -118,7 +132,7 @@ const IR::Node* LowerExpressions::postorder(IR::Concat* expression) {
     auto cast1 = new IR::Cast(expression->right->srcInfo, resulttype, expression->right);
 
     auto sh = new IR::Shl(cast0->srcInfo, cast0, new IR::Constant(sizeofb));
-    mpz_class m = Util::maskFromSlice(sizeofb, 0);
+    big_int m = Util::maskFromSlice(sizeofb, 0);
     auto mask = new IR::Constant(expression->right->srcInfo,
                                  IR::Type_Bits::get(sizeofresult), m, 16);
     auto and0 = new IR::BAnd(expression->right->srcInfo, cast1, mask);
@@ -133,141 +147,6 @@ const IR::Node* LowerExpressions::postorder(IR::Concat* expression) {
 }
 
 /////////////////////////////////////////////////////////////
-
-namespace {
-/**
-Detect whether a Select expression is too complicated for BMv2.
-Also used to detect complex expressions that are arguments
-to method calls.
-*/
-class ComplexExpression : public Inspector {
- public:
-    bool isComplex = false;
-    ComplexExpression() { setName("ComplexExpression"); }
-
-    void postorder(const IR::ArrayIndex*) override {}
-    void postorder(const IR::TypeNameExpression*) override {}
-    void postorder(const IR::PathExpression*) override {}
-    void postorder(const IR::Member*) override {}
-    void postorder(const IR::Literal*) override {}
-    // all other expressions are complex
-    void postorder(const IR::Expression*) override { isComplex = true; }
-};
-
-}  // namespace
-
-const IR::PathExpression*
-RemoveComplexExpressions::createTemporary(const IR::Expression* expression) {
-    auto type = typeMap->getType(expression, true);
-    auto name = refMap->newName("tmp");
-    auto decl = new IR::Declaration_Variable(IR::ID(name), type->getP4Type());
-    newDecls.push_back(decl);
-    typeMap->setType(decl, type);
-    auto assign = new IR::AssignmentStatement(
-        expression->srcInfo, new IR::PathExpression(name), expression);
-    assignments.push_back(assign);
-    return new IR::PathExpression(expression->srcInfo, new IR::Path(name));
-}
-
-const IR::Vector<IR::Argument>*
-RemoveComplexExpressions::simplifyExpressions(const IR::Vector<IR::Argument>* args) {
-    bool changes = true;
-    auto result = new IR::Vector<IR::Argument>();
-    for (auto arg : *args) {
-        auto r = simplifyExpression(arg->expression, false);
-        if (r != arg->expression) {
-            changes = true;
-            result->push_back(new IR::Argument(arg->srcInfo, arg->name, r));
-        } else {
-            result->push_back(arg);
-        }
-    }
-    if (changes)
-        return result;
-    return args;
-}
-
-const IR::Expression*
-RemoveComplexExpressions::simplifyExpression(const IR::Expression* expression, bool force) {
-    // Note that 'force' is not applied recursively
-    if (auto list = expression->to<IR::ListExpression>()) {
-        auto simpl = simplifyExpressions(&list->components);
-        if (simpl != &list->components)
-            return new IR::ListExpression(expression->srcInfo, *simpl);
-        return expression;
-    } else if (auto si = expression->to<IR::StructInitializerExpression>()) {
-        auto simpl = simplifyExpressions(&si->components);
-        if (simpl != &si->components)
-            return new IR::StructInitializerExpression(
-                si->srcInfo, si->name, *simpl, si->isHeader);
-        return expression;
-    } else {
-        ComplexExpression ce;
-        (void)expression->apply(ce);
-        if (force || ce.isComplex) {
-            LOG3("Moved into temporary " << dbp(expression));
-            return createTemporary(expression);
-        }
-        return expression;
-    }
-}
-
-const IR::Vector<IR::Expression>*
-RemoveComplexExpressions::simplifyExpressions(const IR::Vector<IR::Expression>* vec, bool force) {
-    // This is more complicated than I'd like.  If an expression is
-    // a list expression, then we actually simplify the elements
-    // of the list.  Otherwise we simplify the argument itself.
-    // This is mostly for functions that take FieldLists - these
-    // should still take a list as argument.
-    bool changes = true;
-    auto result = new IR::Vector<IR::Expression>();
-    for (auto e : *vec) {
-        auto r = simplifyExpression(e, force);
-        if (r != e)
-            changes = true;
-        result->push_back(r);
-    }
-    if (changes)
-        return result;
-    return vec;
-}
-
-const IR::IndexedVector<IR::NamedExpression>*
-RemoveComplexExpressions::simplifyExpressions(
-    const IR::IndexedVector<IR::NamedExpression>* vec) {
-    auto result = new IR::IndexedVector<IR::NamedExpression>();
-    bool changes = false;
-    for (auto e : *vec) {
-        auto r = simplifyExpression(e->expression, true);
-        if (r != e->expression) {
-            changes = true;
-            result->push_back(new IR::NamedExpression(e->srcInfo, e->name, r));
-        } else {
-            result->push_back(e);
-        }
-    }
-    if (changes)
-        return result;
-    return vec;
-}
-
-const IR::Node*
-RemoveComplexExpressions::postorder(IR::SelectExpression* expression) {
-    auto vec = simplifyExpressions(&expression->select->components);
-    if (vec != &expression->select->components)
-        expression->select = new IR::ListExpression(expression->select->srcInfo, *vec);
-    return expression;
-}
-
-const IR::Node*
-RemoveComplexExpressions::preorder(IR::P4Control* control) {
-    if (policy != nullptr && !policy->convert(control)) {
-        prune();
-        return control;
-    }
-    newDecls.clear();
-    return control;
-}
 
 const IR::Node*
 RemoveComplexExpressions::postorder(IR::MethodCallExpression* expression) {
@@ -289,7 +168,7 @@ RemoveComplexExpressions::postorder(IR::MethodCallExpression* expression) {
             // one knew of this feature, since it was not very clearly
             // documented.
             if (expression->arguments->size() != 2) {
-                ::error("%1% expected 2 arguments", expression);
+                ::error(ErrorType::ERR_EXPECTED, "%1%: expected 2 arguments", expression);
                 return expression;
             }
             auto vec = new IR::Vector<IR::Argument>();
@@ -301,10 +180,10 @@ RemoveComplexExpressions::postorder(IR::MethodCallExpression* expression) {
                 auto simplified = simplifyExpressions(&list->components, true);
                 arg1 = new IR::ListExpression(arg1->srcInfo, *simplified);
                 vec->push_back(new IR::Argument(arg1));
-            } else if (auto si = arg1->to<IR::StructInitializerExpression>()) {
+            } else if (auto si = arg1->to<IR::StructExpression>()) {
                 auto list = simplifyExpressions(&si->components);
-                arg1 = new IR::StructInitializerExpression(
-                    si->srcInfo, si->name, *list, si->isHeader);
+                arg1 = new IR::StructExpression(
+                    si->srcInfo, si->structType, si->structType, *list);
                 vec->push_back(new IR::Argument(arg1));
             } else {
                 auto tmp = new IR::Argument(
@@ -323,14 +202,6 @@ RemoveComplexExpressions::postorder(IR::MethodCallExpression* expression) {
     return expression;
 }
 
-const IR::Node*
-RemoveComplexExpressions::postorder(IR::Statement* statement) {
-    if (assignments.empty())
-        return statement;
-    auto block = new IR::BlockStatement(assignments);
-    block->push_back(statement);
-    assignments.clear();
-    return block;
-}
+
 
 }  // namespace BMV2

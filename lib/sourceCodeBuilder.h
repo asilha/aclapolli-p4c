@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef P4C_LIB_SOURCECODEBUILDER_H_
-#define P4C_LIB_SOURCECODEBUILDER_H_
+#ifndef _LIB_SOURCECODEBUILDER_H_
+#define _LIB_SOURCECODEBUILDER_H_
 
 #include <ctype.h>
 #include <sstream>
@@ -60,6 +60,10 @@ class SourceCodeBuilder {
             return;
         endsInSpace = ::isspace(str.at(str.size() - 1));
         buffer << str;
+    }
+    void append(char c) {
+        endsInSpace = ::isspace(c);
+        buffer << c;
     }
     void append(const char* str) {
         if (str == nullptr)
@@ -110,4 +114,4 @@ class SourceCodeBuilder {
 };
 }  // namespace Util
 
-#endif  /* P4C_LIB_SOURCECODEBUILDER_H_ */
+#endif  /* _LIB_SOURCECODEBUILDER_H_ */

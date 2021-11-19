@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct Headers {
@@ -19,24 +20,7 @@ control Ing(inout Headers headers, inout Metadata meta, inout standard_metadata_
 }
 
 control Eg(inout Headers hdrs, inout Metadata meta, inout standard_metadata_t standard_meta) {
-    bit<64> res_0;
-    bit<32> tmp;
-    bit<64> val;
     @name("Eg.update") action update() {
-        val = res_0;
-        tmp = res_0[31:0];
-        tmp = tmp;
-        val[31:0] = tmp;
-        res_0 = val;
-    }
-    @hidden action act() {
-        res_0 = 64w0;
-    }
-    @hidden table tbl_act {
-        actions = {
-            act();
-        }
-        const default_action = act();
     }
     @hidden table tbl_update {
         actions = {
@@ -45,7 +29,6 @@ control Eg(inout Headers hdrs, inout Metadata meta, inout standard_metadata_t st
         const default_action = update();
     }
     apply {
-        tbl_act.apply();
         tbl_update.apply();
     }
 }

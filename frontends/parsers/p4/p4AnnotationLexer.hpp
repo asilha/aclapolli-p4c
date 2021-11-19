@@ -1,5 +1,5 @@
-#ifndef FRONTENDS_P4_P4ANNOTATIONLEXER_H_
-#define FRONTENDS_P4_P4ANNOTATIONLEXER_H_
+#ifndef FRONTENDS_PARSERS_P4_P4ANNOTATIONLEXER_HPP_
+#define FRONTENDS_PARSERS_P4_P4ANNOTATIONLEXER_HPP_
 
 #include "frontends/parsers/p4/abstractP4Lexer.hpp"
 #include "frontends/parsers/p4/p4parser.hpp"
@@ -12,10 +12,16 @@ class P4AnnotationLexer : public AbstractP4Lexer {
         // Lists
         EXPRESSION_LIST = P4Parser::token_type::TOK_START_EXPRESSION_LIST,
         KV_LIST = P4Parser::token_type::TOK_START_KV_LIST,
+        INTEGER_LIST = P4Parser::token_type::TOK_START_INTEGER_LIST,
+        INTEGER_OR_STRING_LITERAL_LIST =
+            P4Parser::token_type::TOK_START_INTEGER_OR_STRING_LITERAL_LIST,
+        STRING_LITERAL_LIST = P4Parser::token_type::TOK_START_STRING_LITERAL_LIST,
 
         // Singletons
         EXPRESSION = P4Parser::token_type::TOK_START_EXPRESSION,
         INTEGER = P4Parser::token_type::TOK_START_INTEGER,
+        INTEGER_OR_STRING_LITERAL =
+            P4Parser::token_type::TOK_START_INTEGER_OR_STRING_LITERAL,
         STRING_LITERAL = P4Parser::token_type::TOK_START_STRING_LITERAL,
 
         // Pairs
@@ -26,7 +32,12 @@ class P4AnnotationLexer : public AbstractP4Lexer {
         // Triples
         EXPRESSION_TRIPLE = P4Parser::token_type::TOK_START_EXPRESSION_TRIPLE,
         INTEGER_TRIPLE = P4Parser::token_type::TOK_START_INTEGER_TRIPLE,
-        STRING_LITERAL_TRIPLE = P4Parser::token_type::TOK_START_STRING_LITERAL_TRIPLE,
+        STRING_LITERAL_TRIPLE =
+            P4Parser::token_type::TOK_START_STRING_LITERAL_TRIPLE,
+
+        // P4Runtime annotations
+        P4RT_TRANSLATION_ANNOTATION =
+            P4Parser::token_type::TOK_START_P4RT_TRANSLATION_ANNOTATION,
     };
 
  private:
@@ -47,4 +58,4 @@ class P4AnnotationLexer : public AbstractP4Lexer {
 
 }  // namespace P4
 
-#endif  /* FRONTENDS_P4_P4ANNOTATIONLEXER_H_ */
+#endif  /* FRONTENDS_PARSERS_P4_P4ANNOTATIONLEXER_HPP_ */

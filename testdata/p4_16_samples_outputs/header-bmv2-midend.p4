@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header hdr {
@@ -41,18 +42,21 @@ control deparser(packet_out b, in Headers h) {
 }
 
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
-    @hidden action act() {
+    @name("ingress.c.tmp") hdr c_tmp;
+    @hidden action headerbmv2l26() {
+        c_tmp.setInvalid();
+        c_tmp.f = h.h.f + 32w1;
         h.h.f = h.h.f + 32w1;
         sm.egress_spec = 9w0;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_headerbmv2l26 {
         actions = {
-            act();
+            headerbmv2l26();
         }
-        const default_action = act();
+        const default_action = headerbmv2l26();
     }
     apply {
-        tbl_act.apply();
+        tbl_headerbmv2l26.apply();
     }
 }
 

@@ -75,6 +75,8 @@ class Evaluator final : public Inspector, public IHasBlock {
     bool preorder(const IR::ListExpression* expression) override;
     bool preorder(const IR::Constant* expression) override
     { setValue(expression, expression); return false; }
+    bool preorder(const IR::StringLiteral* expression) override
+    { setValue(expression, expression); return false; }
     bool preorder(const IR::BoolLiteral* expression) override
     { setValue(expression, expression); return false; }
     bool preorder(const IR::ListCompileTimeValue* expression) override
@@ -87,7 +89,8 @@ class Evaluator final : public Inspector, public IHasBlock {
                                         const IR::Vector<IR::Argument>* arguments);
 };
 
-// A pass which "evaluates" the program
+/// A pass which "evaluates" the program, creating Blocks for all
+/// high-level constructs.
 class EvaluatorPass final : public PassManager, public IHasBlock {
     P4::Evaluator* evaluator;
  public:

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 control empty();
@@ -8,13 +9,14 @@ control Ing() {
     bit<32> a = 2;
     action cond() {
         b = true;
-        if (b) 
+        if (b) {
             a = 5;
-        else {
-            if (b && a == 5) 
+        } else {
+            if (b && a == 5) {
                 a = 10;
-            else 
+            } else {
                 a = 20;
+            }
         }
     }
     apply {

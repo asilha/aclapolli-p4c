@@ -18,6 +18,7 @@ limitations under the License.
 #define _P4_PARSEANNOTATIONS_H_
 
 #include "ir/ir.h"
+#include "frontends/p4/typeChecking/typeChecker.h"
 #include "frontends/parsers/parserDriver.h"
 
 /*
@@ -44,6 +45,19 @@ namespace P4 {
             }                                                           \
             return parsed != nullptr;                                   \
         }                                                               \
+    }
+
+// Parses an annotation that is either an integer constant or a string literal.
+#define PARSE_CONSTANT_OR_STRING_LITERAL(aname)                                       \
+    { aname, [](IR::Annotation* annotation) {                                         \
+            const IR::Expression* parsed =                                            \
+                P4::P4ParserDriver::parseConstantOrStringLiteral(annotation->srcInfo, \
+                                                                 annotation->body);   \
+            if (parsed != nullptr) {                                                  \
+                annotation->expr.push_back(parsed);                                   \
+            }                                                                         \
+            return parsed != nullptr;                                                 \
+        }                                                                             \
     }
 
 // Parses an annotation whose body is a pair.
@@ -73,11 +87,26 @@ namespace P4 {
         }                                                          \
     }
 
+// Parses an annotation whose body is a list of expressions.
 #define PARSE_EXPRESSION_LIST(aname) \
     { aname, &P4::ParseAnnotations::parseExpressionList }
 
+// Parses an annotation whose body is a list of key-value pairs.
 #define PARSE_KV_LIST(aname) \
     { aname, &P4::ParseAnnotations::parseKvList }
+
+// Parses an annotation whose body is a list of integer constants.
+#define PARSE_CONSTANT_LIST(aname) \
+    { aname, &P4::ParseAnnotations::parseConstantList }
+
+// Parses an annotation whose body is a list, where each element is an integer constant or a string
+// literal.
+#define PARSE_CONSTANT_OR_STRING_LITERAL_LIST(aname) \
+    { aname, &P4::ParseAnnotations::parseConstantOrStringLiteralList }
+
+// Parses an annotation whose body is a list of string literals.
+#define PARSE_STRING_LITERAL_LIST(aname) \
+    { aname, &P4::ParseAnnotations::parseStringLiteralList }
 
 class ParseAnnotations : public Modifier {
  public:
@@ -121,6 +150,13 @@ class ParseAnnotations : public Modifier {
     static bool parseEmpty(IR::Annotation* annotation);
     static bool parseExpressionList(IR::Annotation* annotation);
     static bool parseKvList(IR::Annotation* annotation);
+    static bool parseConstantList(IR::Annotation* annotation);
+    static bool parseConstantOrStringLiteralList(IR::Annotation* annotation);
+    static bool parseStringLiteralList(IR::Annotation* annotation);
+    // Parses a `@p4runtime_translation` annotation.
+    static bool parseP4rtTranslationAnnotation(IR::Annotation* annotation);
+
+    void addHandler(cstring name, Handler h) { handlers.insert({name, h}); }
 
  private:
     /// Whether to warn about unknown annotations.
@@ -131,6 +167,16 @@ class ParseAnnotations : public Modifier {
     std::set<cstring> warned;
 
     HandlerMap handlers;
+};
+
+/// Clears a type map after calling a ParseAnnotations instance.
+class ParseAnnotationBodies final : public PassManager {
+ public:
+    ParseAnnotationBodies(ParseAnnotations* pa, TypeMap* typeMap) {
+        passes.push_back(pa);
+        passes.push_back(new ClearTypeMap(typeMap));
+        setName("ParseAnnotationBodies");
+    }
 };
 
 }  // namespace P4

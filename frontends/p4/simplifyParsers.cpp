@@ -41,11 +41,25 @@ class RemoveUnreachableStates : public Transform {
     const IR::Node* preorder(IR::P4Parser* parser) override {
         auto start = parser->getDeclByName(IR::ParserState::start);
         if (start == nullptr) {
-            ::error("%1%: parser does not have a `start' state", parser);
+            ::error(ErrorType::ERR_NOT_FOUND, "%1%: parser does not have a `start' state", parser);
         } else {
             transitions->reachable(start->to<IR::ParserState>(), reachable);
             // Remove unreachable states from call-graph
             transitions->restrict(reachable);
+            // If neither the accept nor the reject states are
+            // reachable the parser we signal an error.  The reject
+            // state will probably be reached through an error.
+            bool acceptReachable = false;
+            bool rejectReachable = false;
+            for (auto s : reachable) {
+                if (s->name == IR::ParserState::reject)
+                    rejectReachable = true;
+                else if (s->name == IR::ParserState::accept)
+                    acceptReachable = true;
+            }
+            if (!rejectReachable && !acceptReachable)
+                ::error(ErrorType::ERR_UNREACHABLE,
+                        "%1%: Parser never reaches accept or reject state", parser);
             LOG1("Parser " << dbp(parser) << " has " << transitions->size() << " reachable states");
         }
         return parser;
@@ -59,7 +73,8 @@ class RemoveUnreachableStates : public Transform {
         auto orig = getOriginal<IR::ParserState>();
         if (reachable.find(orig) == reachable.end()) {
             if (state->name == IR::ParserState::accept) {
-                ::warning("%1% state in %2% is unreachable", state, findContext<IR::P4Parser>());
+                warn(ErrorType::WARN_UNREACHABLE,
+                     "%1% state in %2% is unreachable", state, findContext<IR::P4Parser>());
                 return state;
             } else  {
                 LOG1("Removing unreachable state " << dbp(state));
@@ -98,6 +113,12 @@ class CollapseChains : public Transform {
         // has no other incoming edges.
         for (auto oe : *transitions) {
             auto node = oe.first;
+            // Avoid merging in case of state annotation
+            if (!node->annotations->annotations.empty()) {
+                if (!node->getAnnotation("name") ||
+                    node->annotations->annotations.size() != 1)
+                    continue;
+            }
             auto outedges = oe.second;
             if (outedges->size() != 1)
                 continue;
@@ -109,6 +130,7 @@ class CollapseChains : public Transform {
             auto callers = transitions->getCallers(next);
             if (callers->size() != 1)
                 continue;
+            // Avoid merging in case of state annotation
             if (!next->annotations->annotations.empty())
                 // we are not sure what to do with the annotations
                 continue;
@@ -178,6 +200,7 @@ class SimplifyParser : public PassManager {
 
 const IR::Node* DoSimplifyParsers::preorder(IR::P4Parser* parser) {
     SimplifyParser simpl(refMap);
+    simpl.setCalledBy(this);
     return parser->apply(simpl);
 }
 

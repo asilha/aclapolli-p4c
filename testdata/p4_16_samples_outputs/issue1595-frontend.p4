@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<48> EthernetAddress;
@@ -31,7 +32,7 @@ parser parserI(packet_in pkt, out Parsed_packet hdr, inout metadata_t meta, inou
 }
 
 control cIngress(inout Parsed_packet hdr, inout metadata_t meta, inout standard_metadata_t stdmeta) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name("cIngress.a1") action a1() {
         hdr.ethernet.srcAddr = 48w1;
@@ -54,9 +55,9 @@ control cIngress(inout Parsed_packet hdr, inout metadata_t meta, inout standard_
             a2();
             a3();
             a4();
-            NoAction_0();
+            NoAction_1();
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     apply {
         switch (t1_0.apply().action_run) {
@@ -71,11 +72,10 @@ control cIngress(inout Parsed_packet hdr, inout metadata_t meta, inout standard_
             a4: {
                 hdr.ethernet.srcAddr[39:32] = 8w4;
             }
-            NoAction_0: {
+            NoAction_1: {
                 hdr.ethernet.srcAddr[39:32] = 8w5;
             }
         }
-
     }
 }
 

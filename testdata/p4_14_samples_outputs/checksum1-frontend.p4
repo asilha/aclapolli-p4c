@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header ethernet_t {
@@ -68,13 +69,13 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
     }
-    @name(".drop") action drop_1() {
+    @name(".drop") action drop() {
     }
-    @name(".forward") action forward(bit<48> to) {
+    @name(".forward") action forward(@name("to") bit<48> to) {
         hdr.ethernet.dstAddr = to;
         hdr.ipv4.ttl = hdr.ipv4.ttl + 8w255;
     }
@@ -82,24 +83,24 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name(".route") table route_0 {
         actions = {
-            drop_1();
+            drop();
             forward();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
         key = {
             hdr.ipv4.dstAddr: ternary @name("ipv4.dstAddr") ;
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     @name(".setup") table setup_0 {
         actions = {
             do_setup();
-            @defaultonly NoAction_3();
+            @defaultonly NoAction_2();
         }
         key = {
             hdr.ethernet.isValid(): exact @name("ethernet.$valid$") ;
         }
-        default_action = NoAction_3();
+        default_action = NoAction_2();
     }
     apply {
         setup_0.apply();

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct custom_metadata_t {
@@ -87,7 +88,7 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
         hdr.ethernet.srcAddr = smac;
     }
     @name("._drop") action _drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".send_frame") table send_frame {
         actions = {
@@ -106,13 +107,13 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
     }
 }
 
-@name(".heavy_hitter_counter1") register<bit<16>>(32w16) heavy_hitter_counter1;
+@name(".heavy_hitter_counter1") register<bit<16>, bit<4>>(32w16) heavy_hitter_counter1;
 
-@name(".heavy_hitter_counter2") register<bit<16>>(32w16) heavy_hitter_counter2;
+@name(".heavy_hitter_counter2") register<bit<16>, bit<4>>(32w16) heavy_hitter_counter2;
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     @name("._drop") action _drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".set_dmac") action set_dmac(bit<48> dmac) {
         hdr.ethernet.dstAddr = dmac;
@@ -124,13 +125,13 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name(".set_heavy_hitter_count") action set_heavy_hitter_count() {
         hash<bit<16>, bit<16>, tuple<bit<32>, bit<32>, bit<8>, bit<16>, bit<16>>, bit<32>>(meta.custom_metadata.hash_val1, HashAlgorithm.csum16, 16w0, { hdr.ipv4.srcAddr, hdr.ipv4.dstAddr, hdr.ipv4.protocol, hdr.tcp.srcPort, hdr.tcp.dstPort }, 32w16);
-        heavy_hitter_counter1.read(meta.custom_metadata.count_val1, (bit<32>)meta.custom_metadata.hash_val1);
+        heavy_hitter_counter1.read(meta.custom_metadata.count_val1, (bit<4>)meta.custom_metadata.hash_val1);
         meta.custom_metadata.count_val1 = meta.custom_metadata.count_val1 + 16w1;
-        heavy_hitter_counter1.write((bit<32>)meta.custom_metadata.hash_val1, meta.custom_metadata.count_val1);
+        heavy_hitter_counter1.write((bit<4>)meta.custom_metadata.hash_val1, meta.custom_metadata.count_val1);
         hash<bit<16>, bit<16>, tuple<bit<32>, bit<32>, bit<8>, bit<16>, bit<16>>, bit<32>>(meta.custom_metadata.hash_val2, HashAlgorithm.crc16, 16w0, { hdr.ipv4.srcAddr, hdr.ipv4.dstAddr, hdr.ipv4.protocol, hdr.tcp.srcPort, hdr.tcp.dstPort }, 32w16);
-        heavy_hitter_counter2.read(meta.custom_metadata.count_val2, (bit<32>)meta.custom_metadata.hash_val2);
+        heavy_hitter_counter2.read(meta.custom_metadata.count_val2, (bit<4>)meta.custom_metadata.hash_val2);
         meta.custom_metadata.count_val2 = meta.custom_metadata.count_val2 + 16w1;
-        heavy_hitter_counter2.write((bit<32>)meta.custom_metadata.hash_val2, meta.custom_metadata.count_val2);
+        heavy_hitter_counter2.write((bit<4>)meta.custom_metadata.hash_val2, meta.custom_metadata.count_val2);
     }
     @name(".drop_heavy_hitter_table") table drop_heavy_hitter_table {
         actions = {
@@ -174,9 +175,9 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     apply {
         set_heavy_hitter_count_table.apply();
-        if (meta.custom_metadata.count_val1 > 16w100 && meta.custom_metadata.count_val2 > 16w100) 
+        if (meta.custom_metadata.count_val1 > 16w100 && meta.custom_metadata.count_val2 > 16w100) {
             drop_heavy_hitter_table.apply();
-        else {
+        } else {
             ipv4_lpm.apply();
             forward.apply();
         }

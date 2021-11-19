@@ -27,6 +27,7 @@ limitations under the License.
 #include "lib/json.h"
 
 class Visitor;
+struct Visitor_Context;
 class Inspector;
 class Modifier;
 class Transform;
@@ -52,9 +53,19 @@ class INode : public Util::IHasSourceInfo, public IHasDbPrint {
     virtual cstring node_type_name() const = 0;
     virtual void validate() const {}
     virtual const Annotation *getAnnotation(cstring) const { return nullptr; }
-    template<typename T> bool is() const;
-    template<typename T> const T *to() const;
-    template<typename T> const T &as() const;
+    template<typename T> bool is() const { return to<T>() != nullptr; }
+    template<typename T> const T *to() const { return dynamic_cast<const T*>(this); }
+    template<typename T> const T &as() const { return dynamic_cast<const T&>(*this); }
+
+    /// A checked version of INode::to. A BUG occurs if the cast fails.
+    ///
+    /// A similar effect can be achieved with `&as<T>()`, but this method produces a message that
+    /// is easier to debug.
+    template<typename T> const T *checkedTo() const {
+        const auto *result = to<T>();
+        BUG_CHECK(result, "Cast failed: %1% is not a %2%.", this, T::static_type_name());
+        return result;
+    }
 };
 
 class Node : public virtual INode {
@@ -68,6 +79,8 @@ class Node : public virtual INode {
     virtual const Node *apply_visitor_preorder(Transform &v);
     virtual const Node *apply_visitor_postorder(Transform &v);
     virtual void apply_visitor_revisit(Transform &v, const Node *n) const;
+    Node &operator=(const Node &) = default;
+    Node &operator=(Node &&) = default;
 
  protected:
     static int currentId;
@@ -93,8 +106,9 @@ class Node : public virtual INode {
     Node(const Node& other) : srcInfo(other.srcInfo), id(currentId++), clone_id(other.clone_id) {
         traceCreation(); }
     virtual ~Node() {}
-    const Node *apply(Visitor &v) const;
-    const Node *apply(Visitor &&v) const { return apply(v); }
+    const Node *apply(Visitor &v, const Visitor_Context *ctxt = nullptr) const;
+    const Node *apply(Visitor &&v, const Visitor_Context *ctxt = nullptr) const {
+        return apply(v, ctxt); }
     virtual Node *clone() const = 0;
     void dbprint(std::ostream &out) const override;
     virtual void dump_fields(std::ostream &) const { }
@@ -129,14 +143,14 @@ class Node : public virtual INode {
 // simple version of dbprint
 cstring dbp(const INode* node);
 
-template<typename T> bool INode::is() const { return getNode()->is<T>(); }
-template<typename T> const T *INode::to() const { return getNode()->to<T>(); }
-template<typename T> const T &INode::as() const { return getNode()->as<T>(); }
-
 inline bool equal(const Node *a, const Node *b) {
     return a == b || (a && b && *a == *b); }
 inline bool equal(const INode *a, const INode *b) {
     return a == b || (a && b && *a->getNode() == *b->getNode()); }
+inline bool equiv(const Node *a, const Node *b) {
+    return a == b || (a && b && a->equiv(*b)); }
+inline bool equiv(const INode *a, const INode *b) {
+    return a == b || (a && b && a->getNode()->equiv(*b->getNode())); }
 
 /* common things that ALL Node subclasses must define */
 #define IRNODE_SUBCLASS(T)                                              \
@@ -164,14 +178,15 @@ inline bool equal(const INode *a, const INode *b) {
 /* only define 'apply' for a limited number of classes (those we want to call
  * visitors directly on), as defining it and making it virtual would mean that
  * NO Transform could transform the class into a sibling class */
-#define IRNODE_DECLARE_APPLY_OVERLOAD(T)                                \
-    const T *apply(Visitor &v) const;                                   \
-    const T *apply(Visitor &&v) const { return apply(v); }
+#define IRNODE_DECLARE_APPLY_OVERLOAD(T)                                        \
+    const T *apply(Visitor &v, const Visitor_Context *ctxt = nullptr) const;    \
+    const T *apply(Visitor &&v, const Visitor_Context *ctxt = nullptr) const {  \
+        return apply(v, ctxt); }
 #define IRNODE_DEFINE_APPLY_OVERLOAD(CLASS, TEMPLATE, TT)               \
     TEMPLATE                                                            \
-    const IR::CLASS TT *IR::CLASS TT::apply(Visitor &v) const {         \
+    const IR::CLASS TT *IR::CLASS TT::apply(Visitor &v, const Visitor_Context *ctxt) const { \
         const CLASS *tmp = this;                                        \
-        auto prof = v.init_apply(tmp);                                  \
+        auto prof = v.init_apply(tmp, ctxt);                            \
         v.visit(tmp);                                                   \
         v.end_apply(tmp);                                               \
         return tmp; }

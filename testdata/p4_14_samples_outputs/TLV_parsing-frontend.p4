@@ -4,13 +4,12 @@ header ipv4_option_timestamp_t_1 {
 }
 
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct intrinsic_metadata_t {
-    bit<4>  mcast_grp;
-    bit<4>  egress_rid;
-    bit<16> mcast_hash;
-    bit<32> lf_field_list;
+    bit<4> mcast_grp;
+    bit<4> egress_rid;
 }
 
 struct my_metadata_t {
@@ -47,7 +46,6 @@ header ipv4_option_security_t {
 header ipv4_option_timestamp_t {
     bit<8>      value;
     bit<8>      len;
-    @length(((bit<32>)len << 3) + 32w4294967280) 
     varbit<304> data;
 }
 
@@ -60,10 +58,8 @@ header ipv4_option_NOP_t {
 }
 
 struct metadata {
-    @name(".intrinsic_metadata") 
-    intrinsic_metadata_t intrinsic_metadata;
     @name(".my_metadata") 
-    my_metadata_t        my_metadata;
+    my_metadata_t my_metadata;
 }
 
 struct headers {
@@ -82,9 +78,10 @@ struct headers {
 }
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    ipv4_option_timestamp_t_1 tmp_hdr_0;
-    ipv4_option_timestamp_t_1 tmp;
-    bit<8> tmp_0;
+    @name("ParserImpl.tmp_hdr") ipv4_option_timestamp_t_1 tmp_hdr_0;
+    @name("ParserImpl.tmp") bit<8> tmp;
+    @name("ParserImpl.tmp_0") bit<8> tmp_0;
+    @name("ParserImpl.tmp_1") bit<8> tmp_1;
     @name(".parse_ethernet") state parse_ethernet {
         packet.extract<ethernet_t>(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
@@ -106,7 +103,7 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
         transition parse_ipv4_options;
     }
     @name(".parse_ipv4_option_NOP") state parse_ipv4_option_NOP {
-        packet.extract<ipv4_option_EOL_t>(hdr.ipv4_option_NOP.next);
+        packet.extract<ipv4_option_NOP_t>(hdr.ipv4_option_NOP.next);
         meta.my_metadata.parse_ipv4_counter = meta.my_metadata.parse_ipv4_counter + 8w255;
         transition parse_ipv4_options;
     }
@@ -116,29 +113,31 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
         transition parse_ipv4_options;
     }
     @name(".parse_ipv4_option_timestamp") state parse_ipv4_option_timestamp {
-        tmp = packet.lookahead<ipv4_option_timestamp_t_1>();
-        tmp_hdr_0 = tmp;
+        tmp_hdr_0 = packet.lookahead<ipv4_option_timestamp_t_1>();
         packet.extract<ipv4_option_timestamp_t>(hdr.ipv4_option_timestamp, ((bit<32>)tmp_hdr_0.len << 3) + 32w4294967280);
         meta.my_metadata.parse_ipv4_counter = meta.my_metadata.parse_ipv4_counter - hdr.ipv4_option_timestamp.len;
         transition parse_ipv4_options;
     }
     @name(".parse_ipv4_options") state parse_ipv4_options {
-        tmp_0 = packet.lookahead<bit<8>>();
-        transition select(meta.my_metadata.parse_ipv4_counter, tmp_0[7:0]) {
-            (8w0x0 &&& 8w0xff, 8w0x0 &&& 8w0x0): accept;
-            (8w0x0 &&& 8w0x0, 8w0x0 &&& 8w0xff): parse_ipv4_option_EOL;
-            (8w0x0 &&& 8w0x0, 8w0x1 &&& 8w0xff): parse_ipv4_option_NOP;
-            (8w0x0 &&& 8w0x0, 8w0x82 &&& 8w0xff): parse_ipv4_option_security;
-            (8w0x0 &&& 8w0x0, 8w0x44 &&& 8w0xff): parse_ipv4_option_timestamp;
+        tmp = meta.my_metadata.parse_ipv4_counter;
+        tmp_1 = packet.lookahead<bit<8>>();
+        tmp_0 = tmp_1;
+        transition select(tmp, tmp_0) {
+            (8w0x0, 8w0x0 &&& 8w0x0): accept;
+            (8w0x0 &&& 8w0x0, 8w0x0): parse_ipv4_option_EOL;
+            (8w0x0 &&& 8w0x0, 8w0x1): parse_ipv4_option_NOP;
+            (8w0x0 &&& 8w0x0, 8w0x82): parse_ipv4_option_security;
+            (8w0x0 &&& 8w0x0, 8w0x44): parse_ipv4_option_timestamp;
         }
     }
     @header_ordering("ethernet", "ipv4_base", "ipv4_option_security", "ipv4_option_NOP", "ipv4_option_timestamp", "ipv4_option_EOL") @name(".start") state start {
+        tmp_hdr_0.setInvalid();
         transition parse_ethernet;
     }
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name(".format_options_security") action format_options_security() {
         hdr.ipv4_option_NOP.pop_front(3);
@@ -168,14 +167,14 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
             format_options_timestamp();
             format_options_both();
             _nop();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
         key = {
             hdr.ipv4_option_security.isValid() : exact @name("ipv4_option_security.$valid$") ;
             hdr.ipv4_option_timestamp.isValid(): exact @name("ipv4_option_timestamp.$valid$") ;
         }
         size = 4;
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     apply {
         format_options_0.apply();
@@ -192,7 +191,7 @@ control DeparserImpl(packet_out packet, in headers hdr) {
         packet.emit<ethernet_t>(hdr.ethernet);
         packet.emit<ipv4_base_t>(hdr.ipv4_base);
         packet.emit<ipv4_option_EOL_t[3]>(hdr.ipv4_option_EOL);
-        packet.emit<ipv4_option_EOL_t[3]>(hdr.ipv4_option_NOP);
+        packet.emit<ipv4_option_NOP_t[3]>(hdr.ipv4_option_NOP);
         packet.emit<ipv4_option_security_t>(hdr.ipv4_option_security);
         packet.emit<ipv4_option_timestamp_t>(hdr.ipv4_option_timestamp);
     }
@@ -205,7 +204,7 @@ control verifyChecksum(inout headers hdr, inout metadata meta) {
 
 control computeChecksum(inout headers hdr, inout metadata meta) {
     apply {
-        update_checksum<tuple<bit<4>, bit<4>, bit<8>, bit<16>, bit<16>, bit<3>, bit<13>, bit<8>, bit<8>, bit<32>, bit<32>, ipv4_option_security_t, ipv4_option_EOL_t, ipv4_option_timestamp_t>, bit<16>>(true, { hdr.ipv4_base.version, hdr.ipv4_base.ihl, hdr.ipv4_base.diffserv, hdr.ipv4_base.totalLen, hdr.ipv4_base.identification, hdr.ipv4_base.flags, hdr.ipv4_base.fragOffset, hdr.ipv4_base.ttl, hdr.ipv4_base.protocol, hdr.ipv4_base.srcAddr, hdr.ipv4_base.dstAddr, hdr.ipv4_option_security, hdr.ipv4_option_NOP[0], hdr.ipv4_option_timestamp }, hdr.ipv4_base.hdrChecksum, HashAlgorithm.csum16);
+        update_checksum<tuple<bit<4>, bit<4>, bit<8>, bit<16>, bit<16>, bit<3>, bit<13>, bit<8>, bit<8>, bit<32>, bit<32>, ipv4_option_security_t, ipv4_option_NOP_t, ipv4_option_timestamp_t>, bit<16>>(true, { hdr.ipv4_base.version, hdr.ipv4_base.ihl, hdr.ipv4_base.diffserv, hdr.ipv4_base.totalLen, hdr.ipv4_base.identification, hdr.ipv4_base.flags, hdr.ipv4_base.fragOffset, hdr.ipv4_base.ttl, hdr.ipv4_base.protocol, hdr.ipv4_base.srcAddr, hdr.ipv4_base.dstAddr, hdr.ipv4_option_security, hdr.ipv4_option_NOP[0], hdr.ipv4_option_timestamp }, hdr.ipv4_base.hdrChecksum, HashAlgorithm.csum16);
     }
 }
 

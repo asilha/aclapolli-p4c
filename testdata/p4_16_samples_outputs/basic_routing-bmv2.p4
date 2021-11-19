@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -151,7 +152,6 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
                     ipv4_fib_lpm.apply();
                 }
             }
-
             nexthop.apply();
         }
     }

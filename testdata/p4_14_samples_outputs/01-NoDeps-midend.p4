@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -13,8 +14,8 @@ header ethernet_t {
 }
 
 struct metadata {
-    @name(".ing_metadata") 
-    ingress_metadata_t ing_metadata;
+    bit<1> _ing_metadata_drop0;
+    bit<8> _ing_metadata_egress_port1;
 }
 
 struct headers {
@@ -30,19 +31,19 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
     }
     @name(".nop") action nop() {
     }
     @name(".e_t1") table e_t1_0 {
         actions = {
             nop();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_2();
         }
         key = {
             hdr.ethernet.srcAddr: exact @name("ethernet.srcAddr") ;
         }
-        default_action = NoAction_0();
+        default_action = NoAction_2();
     }
     apply {
         e_t1_0.apply();
@@ -50,41 +51,41 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_1() {
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
     }
-    @name(".NoAction") action NoAction_5() {
+    @noWarn("unused") @name(".NoAction") action NoAction_4() {
     }
     @name(".nop") action nop_2() {
     }
-    @name(".nop") action nop_4() {
+    @name(".nop") action nop_3() {
     }
-    @name(".set_egress_port") action set_egress_port(bit<8> egress_port) {
-        meta.ing_metadata.egress_port = egress_port;
+    @name(".set_egress_port") action set_egress_port(@name("egress_port") bit<8> egress_port_1) {
+        meta._ing_metadata_egress_port1 = egress_port_1;
     }
     @name(".ing_drop") action ing_drop() {
-        meta.ing_metadata.drop = 1w1;
+        meta._ing_metadata_drop0 = 1w1;
     }
     @name(".dmac") table dmac_0 {
         actions = {
             nop_2();
             set_egress_port();
-            @defaultonly NoAction_1();
+            @defaultonly NoAction_3();
         }
         key = {
             hdr.ethernet.dstAddr: exact @name("ethernet.dstAddr") ;
         }
-        default_action = NoAction_1();
+        default_action = NoAction_3();
     }
     @name(".smac_filter") table smac_filter_0 {
         actions = {
-            nop_4();
+            nop_3();
             ing_drop();
-            @defaultonly NoAction_5();
+            @defaultonly NoAction_4();
         }
         key = {
             hdr.ethernet.srcAddr: exact @name("ethernet.srcAddr") ;
         }
-        default_action = NoAction_5();
+        default_action = NoAction_4();
     }
     apply {
         dmac_0.apply();

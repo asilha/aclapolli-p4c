@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 #include <core.p4>
-#include "psa.p4"
+#include "bmv2/psa.p4"
 
 
 typedef bit<48>  EthernetAddress;
@@ -57,7 +57,7 @@ struct headers {
 }
 
 // BEGIN:Register_Example2_Part1
-const PortId_t NUM_PORTS = 512;
+const bit<32> NUM_PORTS = 512;
 
 // It would be more convenient to use a struct type to represent the
 // state of a combined packet and byte count, and many other compound
@@ -116,11 +116,14 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    Register<PacketByteCountState_t, PortId_t>((bit<32>) NUM_PORTS)
+    Register<PacketByteCountState_t, PortId_t>(NUM_PORTS)
         port_pkt_ip_bytes_in;
 
     apply {
-        ostd.egress_port = 0;
+        ostd.egress_port = (PortId_t) 0;
+        hdr.ipv4.setValid();
+        // dstAddr (48 bits), srcAddr (48 bits), etherType (16 bits)
+        hdr.ipv4.totalLen = (48 + 48 + 16) / 8;
         if (hdr.ipv4.isValid()) {
             @atomic {
                 PacketByteCountState_t tmp;

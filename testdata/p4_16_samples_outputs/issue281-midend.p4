@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header ethernet_t {
@@ -39,53 +40,35 @@ struct m {
 }
 
 parser MyParser(packet_in b, out h hdr, inout m meta, inout standard_metadata_t std) {
-    ethernet_t hdr_0_ether;
-    vlan_t hdr_0_vlan;
-    ipv4_t hdr_0_ipv4;
-    ethernet_t l2_ether;
-    ethernet_t hdr_1_ether;
-    vlan_t hdr_1_vlan;
-    ipv4_t hdr_1_ipv4;
-    ipv4_t l3_ipv4;
-    vlan_t l3_vlan;
+    @name("MyParser.l3.etherType") bit<16> l3_etherType;
     state start {
-        hdr_0_ether.setInvalid();
-        hdr_0_vlan.setInvalid();
-        hdr_0_ipv4.setInvalid();
-        l2_ether.setInvalid();
-        b.extract<ethernet_t>(l2_ether);
-        hdr_0_ether = l2_ether;
-        hdr.ether = l2_ether;
-        hdr.vlan = hdr_0_vlan;
-        hdr.ipv4 = hdr_0_ipv4;
-        hdr_1_ether = l2_ether;
-        hdr_1_vlan = hdr_0_vlan;
-        hdr_1_ipv4 = hdr_0_ipv4;
-        transition L3_start;
+        hdr.ether.setInvalid();
+        hdr.vlan.setInvalid();
+        hdr.ipv4.setInvalid();
+        hdr.ether.setInvalid();
+        b.extract<ethernet_t>(hdr.ether);
+        l3_etherType = hdr.ether.etherType;
+        transition L3_start_0;
     }
-    state L3_start {
-        transition select(hdr_1_ether.etherType) {
+    state L3_start_0 {
+        transition select(l3_etherType) {
             16w0x800: L3_ipv4;
             16w0x8100: L3_vlan;
-            default: start_2;
+            default: start_3;
         }
     }
     state L3_ipv4 {
-        l3_ipv4.setInvalid();
-        b.extract<ipv4_t>(l3_ipv4);
-        hdr_1_ipv4 = l3_ipv4;
-        transition start_2;
+        hdr.ipv4.setInvalid();
+        b.extract<ipv4_t>(hdr.ipv4);
+        transition start_3;
     }
     state L3_vlan {
-        l3_vlan.setInvalid();
-        b.extract<vlan_t>(l3_vlan);
-        hdr_1_vlan = l3_vlan;
-        transition L3_start;
+        hdr.vlan.setInvalid();
+        b.extract<vlan_t>(hdr.vlan);
+        l3_etherType = hdr.vlan.etherType;
+        transition L3_start_0;
     }
-    state start_2 {
-        hdr.ether = hdr_1_ether;
-        hdr.vlan = hdr_1_vlan;
-        hdr.ipv4 = hdr_1_ipv4;
+    state start_3 {
         transition accept;
     }
 }

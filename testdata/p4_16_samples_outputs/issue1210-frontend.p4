@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct PortId_t {
@@ -21,10 +22,12 @@ parser ParserImpl(packet_in packet, out parsed_headers_t hdr, inout metadata_t m
 
 control IngressImpl(inout parsed_headers_t hdr, inout metadata_t meta, inout standard_metadata_t standard_metadata) {
     apply {
-        if (meta.foo == meta.bar) 
+        if (meta.foo == meta.bar) {
             meta.foo._v = meta.foo._v + 9w1;
-        if (meta.foo == { 9w192 }) 
+        }
+        if (meta.foo == (PortId_t){_v = 9w192}) {
             meta.foo._v = meta.foo._v + 9w1;
+        }
     }
 }
 

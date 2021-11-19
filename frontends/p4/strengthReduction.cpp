@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,69 +20,92 @@ namespace P4 {
 
 /// @section Helper methods
 
-bool StrengthReduction::isOne(const IR::Expression* expr) const {
+bool DoStrengthReduction::isOne(const IR::Expression* expr) const {
     auto cst = expr->to<IR::Constant>();
     if (cst == nullptr)
         return false;
     return cst->value == 1;
 }
 
-bool StrengthReduction::isZero(const IR::Expression* expr) const {
+bool DoStrengthReduction::isZero(const IR::Expression* expr) const {
+    if (auto bt = expr->type->to<IR::Type_Bits>()) {
+        if (bt->width_bits() == 0)
+            return true;
+    }
     auto cst = expr->to<IR::Constant>();
     if (cst == nullptr)
         return false;
     return cst->value == 0;
 }
 
-bool StrengthReduction::isTrue(const IR::Expression* expr) const {
+bool DoStrengthReduction::isTrue(const IR::Expression* expr) const {
     auto cst = expr->to<IR::BoolLiteral>();
     if (cst == nullptr)
         return false;
     return cst->value;
 }
 
-bool StrengthReduction::isFalse(const IR::Expression* expr) const {
+bool DoStrengthReduction::isFalse(const IR::Expression* expr) const {
     auto cst = expr->to<IR::BoolLiteral>();
     if (cst == nullptr)
         return false;
     return !cst->value;
 }
-int StrengthReduction::isPowerOf2(const IR::Expression* expr) const {
+
+int DoStrengthReduction::isPowerOf2(const IR::Expression* expr) const {
     auto cst = expr->to<IR::Constant>();
     if (cst == nullptr)
         return -1;
-    mpz_class value = cst->value;
-    if (sgn(value) <= 0)
+    if (cst->value <= 0)
         return -1;
-    auto bitcnt = mpz_popcount(value.get_mpz_t());
-    if (bitcnt != 1)
+    auto log = boost::multiprecision::msb(cst->value);
+    if (log != boost::multiprecision::lsb(cst->value))
         return -1;
-    auto log = mpz_scan1(value.get_mpz_t(), 0);
     // Assumes value does not have more than 2 billion bits
     return log;
 }
 
+bool DoStrengthReduction::isAllOnes(const IR::Expression* expr) const {
+    auto cst = expr->to<IR::Constant>();
+    if (cst == nullptr)
+        return false;
+    big_int value = cst->value;
+    if (value <= 0)
+        return false;
+    auto bitcnt = bitcount(value);
+    return bitcnt == (unsigned long)(expr->type->width_bits());
+}
+
 /// @section Visitor Methods
 
-const IR::Node* StrengthReduction::postorder(IR::Cmpl* expr) {
+const IR::Node* DoStrengthReduction::postorder(IR::Cmpl* expr) {
     if (auto a = expr->expr->to<IR::Cmpl>())
         return a->expr;
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::BAnd* expr) {
-    if (isZero(expr->left))
-        return expr->left;
-    if (isZero(expr->right))
+const IR::Node* DoStrengthReduction::postorder(IR::BAnd* expr) {
+    if (isAllOnes(expr->left))
         return expr->right;
+    if (isAllOnes(expr->right))
+        return expr->left;
     auto l = expr->left->to<IR::Cmpl>();
     auto r = expr->right->to<IR::Cmpl>();
     if (l && r)
         return new IR::Cmpl(new IR::BOr(expr->srcInfo, l->expr, r->expr));
+
+    if (hasSideEffects(expr))
+        return expr;
+    if (isZero(expr->left))
+        return expr->left;
+    if (isZero(expr->right))
+        return expr->right;
+    if (expr->left->equiv(*expr->right))
+        return expr->left;
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::BOr* expr) {
+const IR::Node* DoStrengthReduction::postorder(IR::BOr* expr) {
     if (isZero(expr->left))
         return expr->right;
     if (isZero(expr->right))
@@ -91,10 +114,14 @@ const IR::Node* StrengthReduction::postorder(IR::BOr* expr) {
     auto r = expr->right->to<IR::Cmpl>();
     if (l && r)
         return new IR::Cmpl(new IR::BAnd(expr->srcInfo, l->expr, r->expr));
+    if (hasSideEffects(expr))
+        return expr;
+    if (expr->left->equiv(*expr->right))
+        return expr->left;
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::BXor* expr) {
+const IR::Node* DoStrengthReduction::postorder(IR::BXor* expr) {
     if (isZero(expr->left))
         return expr->right;
     if (isZero(expr->right))
@@ -108,10 +135,16 @@ const IR::Node* StrengthReduction::postorder(IR::BXor* expr) {
         cmpl = !cmpl; }
     if (cmpl)
         return new IR::Cmpl(expr);
+    if (hasSideEffects(expr))
+        return expr;
+    if (expr->left->equiv(*expr->right) && expr->left->type &&
+        !expr->left->type->is<IR::Type_Unknown>())
+        // we assume that this type is right
+        return new IR::Constant(expr->left->type, 0);
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::LAnd* expr) {
+const IR::Node* DoStrengthReduction::postorder(IR::LAnd* expr) {
     if (isFalse(expr->left))
         return expr->left;
     if (isTrue(expr->left))
@@ -122,7 +155,7 @@ const IR::Node* StrengthReduction::postorder(IR::LAnd* expr) {
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::LOr* expr) {
+const IR::Node* DoStrengthReduction::postorder(IR::LOr* expr) {
     if (isFalse(expr->left))
         return expr->right;
     if (isTrue(expr->left))
@@ -133,7 +166,37 @@ const IR::Node* StrengthReduction::postorder(IR::LOr* expr) {
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::LNot* expr) {
+const IR::Node* DoStrengthReduction::postorder(IR::Equ* expr) {
+    // a == true is the same as a
+    if (isTrue(expr->left))
+        return expr->right;
+    if (isTrue(expr->right))
+        return expr->left;
+    // a == false is the same as !a
+    if (isFalse(expr->left))
+        return new IR::LNot(expr->right);
+    if (isFalse(expr->right))
+        return new IR::LNot(expr->left);
+    return expr;
+}
+
+const IR::Node* DoStrengthReduction::postorder(IR::Neq* expr) {
+    // a != true is the same as !a
+    if (isTrue(expr->left))
+        return new IR::LNot(expr->right);
+    if (isTrue(expr->right))
+        return new IR::LNot(expr->left);
+    // a != false is the same as a
+    if (isFalse(expr->left))
+        return expr->right;
+    if (isFalse(expr->right))
+        return expr->left;
+    return expr;
+}
+
+const IR::Node* DoStrengthReduction::postorder(IR::LNot* expr) {
+    if (auto e = expr->expr->to<IR::LNot>())
+        return e->expr;
     if (auto e = expr->expr->to<IR::Equ>())
         return new IR::Neq(e->left, e->right);
     if (auto e = expr->expr->to<IR::Neq>())
@@ -149,7 +212,7 @@ const IR::Node* StrengthReduction::postorder(IR::LNot* expr) {
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::Sub* expr) {
+const IR::Node* DoStrengthReduction::postorder(IR::Sub* expr) {
     if (isZero(expr->right))
         return expr->left;
     if (isZero(expr->left))
@@ -161,10 +224,15 @@ const IR::Node* StrengthReduction::postorder(IR::Sub* expr) {
         auto result = new IR::Add(expr->srcInfo, expr->left, neg);
         return result;
     }
+    if (hasSideEffects(expr))
+        return expr;
+    if (expr->left->equiv(*expr->right) && expr->left->type &&
+        !expr->left->type->is<IR::Type_Unknown>())
+        return new IR::Constant(expr->left->type, 0);
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::Add* expr) {
+const IR::Node* DoStrengthReduction::postorder(IR::Add* expr) {
     if (isZero(expr->right))
         return expr->left;
     if (isZero(expr->left))
@@ -172,23 +240,44 @@ const IR::Node* StrengthReduction::postorder(IR::Add* expr) {
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::Shl* expr) {
-    if (isZero(expr->right) || isZero(expr->left))
-        return expr->left;
-    return expr;
-}
-
-const IR::Node* StrengthReduction::postorder(IR::Shr* expr) {
-    if (isZero(expr->right) || isZero(expr->left))
-        return expr->left;
-    return expr;
-}
-
-const IR::Node* StrengthReduction::postorder(IR::Mul* expr) {
-    if (isZero(expr->left))
-        return expr->left;
+const IR::Node* DoStrengthReduction::postorder(IR::Shl* expr) {
     if (isZero(expr->right))
-        return expr->right;
+        return expr->left;
+    if (auto sh2 = expr->left->to<IR::Shl>()) {
+        if (sh2->right->type->is<IR::Type_InfInt>() &&
+            expr->right->type->is<IR::Type_InfInt>()) {
+            // (a << b) << c is a << (b + c)
+            auto result = new IR::Shl(expr->srcInfo, sh2->left,
+                                      new IR::Add(expr->srcInfo, sh2->right, expr->right));
+            LOG3("Replace " << expr << " with " << result);
+            return result;
+        }
+    }
+
+    if (!hasSideEffects(expr->right) && isZero(expr->left))
+        return expr->left;
+    return expr;
+}
+
+const IR::Node* DoStrengthReduction::postorder(IR::Shr* expr) {
+    if (isZero(expr->right))
+        return expr->left;
+    if (auto sh2 = expr->left->to<IR::Shr>()) {
+        if (sh2->right->type->is<IR::Type_InfInt>() &&
+            expr->right->type->is<IR::Type_InfInt>()) {
+            // (a >> b) >> c is a >> (b + c)
+            auto result = new IR::Shr(expr->srcInfo, sh2->left,
+                                      new IR::Add(expr->srcInfo, sh2->right, expr->right));
+            LOG3("Replace " << expr << " with " << result);
+            return result;
+        }
+    }
+    if (!hasSideEffects(expr->right) && isZero(expr->left))
+        return expr->left;
+    return expr;
+}
+
+const IR::Node* DoStrengthReduction::postorder(IR::Mul* expr) {
     if (isOne(expr->left))
         return expr->right;
     if (isOne(expr->right))
@@ -205,16 +294,20 @@ const IR::Node* StrengthReduction::postorder(IR::Mul* expr) {
         auto sh = new IR::Shl(expr->srcInfo, expr->left, amt);
         return sh;
     }
+    if (hasSideEffects(expr))
+        return expr;
+    if (isZero(expr->left))
+        return expr->left;
+    if (isZero(expr->right))
+        return expr->right;
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::Div* expr) {
+const IR::Node* DoStrengthReduction::postorder(IR::Div* expr) {
     if (isZero(expr->right)) {
-        ::error("%1%: Division by zero", expr);
+        ::error(ErrorType::ERR_EXPRESSION, "%1%: Division by zero", expr);
         return expr;
     }
-    if (isZero(expr->left))
-        return expr->left;
     if (isOne(expr->right))
         return expr->left;
     auto exp = isPowerOf2(expr->right);
@@ -223,19 +316,21 @@ const IR::Node* StrengthReduction::postorder(IR::Div* expr) {
         auto sh = new IR::Shr(expr->srcInfo, expr->left, amt);
         return sh;
     }
+    if (isZero(expr->left) && !hasSideEffects(expr->right))
+        return expr->left;
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::Mod* expr) {
+const IR::Node* DoStrengthReduction::postorder(IR::Mod* expr) {
     if (isZero(expr->right)) {
-        ::error("%1%: Modulo by zero", expr);
+        ::error(ErrorType::ERR_EXPRESSION, "%1%: Modulo by zero", expr);
         return expr;
     }
-    if (isZero(expr->left))
+    if (isZero(expr->left) && !hasSideEffects(expr->right))
         return expr->left;
     auto exp = isPowerOf2(expr->right);
     if (exp >= 0) {
-        mpz_class mask = 1;
+        big_int mask = 1;
         mask = (mask << exp) - 1;
         auto amt = new IR::Constant(expr->right->to<IR::Constant>()->type, mask);
         auto sh = new IR::BAnd(expr->srcInfo, expr->left, amt);
@@ -244,7 +339,48 @@ const IR::Node* StrengthReduction::postorder(IR::Mod* expr) {
     return expr;
 }
 
-const IR::Node* StrengthReduction::postorder(IR::Slice* expr) {
+const IR::Node* DoStrengthReduction::postorder(IR::Range* range) {
+    // Range a..a is the same as a
+    if (auto c0 = range->left->to<IR::Constant>()) {
+        if (auto c1 = range->right->to<IR::Constant>()) {
+            if (c0->value == c1->value)
+                return c0;
+        }
+    }
+    return range;
+}
+
+const IR::Node* DoStrengthReduction::postorder(IR::Mask* mask) {
+    // a &&& 0xFFFF = a
+    if (isAllOnes(mask->right)) {
+        return mask->left;
+    }
+    return mask;
+}
+
+const IR::Node* DoStrengthReduction::postorder(IR::Mux* expr) {
+    if (isTrue(expr->e1) && isFalse(expr->e2))
+        return expr->e0;
+    else if (isFalse(expr->e1) && isTrue(expr->e2))
+        return new IR::LNot(expr->e0);
+    else if (auto lnot = expr->e0->to<IR::LNot>())
+        return new IR::Mux(lnot->expr, expr->e2, expr->e1);
+    else if (!hasSideEffects(expr) && expr->e1->equiv(*expr->e2))
+        return expr->e1;
+    return expr;
+}
+
+const IR::Node* DoStrengthReduction::postorder(IR::Concat* expr) {
+    if (auto bt = expr->left->type->to<IR::Type_Bits>())
+        if (bt->width_bits() == 0)
+            return expr->right;
+    if (auto bt = expr->right->type->to<IR::Type_Bits>())
+        if (bt->width_bits() == 0)
+            return expr->left;
+    return expr;
+}
+
+const IR::Node* DoStrengthReduction::postorder(IR::Slice* expr) {
     int shift_amt = 0;
     const IR::Expression *shift_of = nullptr;
     if (auto sh = expr->e0->to<IR::Shr>()) {
@@ -256,12 +392,72 @@ const IR::Node* StrengthReduction::postorder(IR::Slice* expr) {
             shift_amt = -k->asInt();
             shift_of = sh->left; } }
     if (shift_of) {
+        if (!shift_of->type->is<IR::Type_Bits>())
+            return expr;
+        if (shift_of->type->to<IR::Type_Bits>()->isSigned && expr->e0->is<IR::Shr>())
+            return expr;
         int hi = expr->getH();
         int lo = expr->getL();
         if (lo + shift_amt >= 0 && hi + shift_amt < shift_of->type->width_bits()) {
             expr->e0 = shift_of;
             expr->e1 = new IR::Constant(hi + shift_amt);
-            expr->e2 = new IR::Constant(lo + shift_amt); } }
+            expr->e2 = new IR::Constant(lo + shift_amt); }
+        if (hi + shift_amt < 0) {
+            if (!hasSideEffects(shift_of))
+                return new IR::Constant(IR::Type_Bits::get(hi - lo + 1), 0);
+            // TODO: here we could promote the side-effect into a
+            // separate statement.  and still return the constant.
+            // But for now we only produce expressions.
+            return expr;
+        }
+        if (lo + shift_amt < 0) {
+            expr->e0 = shift_of;
+            expr->e1 = new IR::Constant(hi + shift_amt);
+            expr->e2 = new IR::Constant(0);
+            return new IR::Concat(expr->type, expr,
+                    new IR::Constant(IR::Type_Bits::get(-(lo + shift_amt)), 0)); } }
+
+    while (auto cat = expr->e0->to<IR::Concat>()) {
+        unsigned rwidth = cat->right->type->width_bits();
+        if (expr->getL() >= rwidth) {
+            if (!hasSideEffects(cat->right)) {
+                expr->e0 = cat->left;
+                expr->e1 = new IR::Constant(expr->getH() - rwidth);
+                expr->e2 = new IR::Constant(expr->getL() - rwidth);
+            } else {
+                break;
+            }
+        } else if (expr->getH() < rwidth) {
+            if (!hasSideEffects(cat->left))
+                expr->e0 = cat->right;
+            else
+                break;
+        } else {
+            return new IR::Concat(expr->type,
+                    new IR::Slice(cat->left, expr->getH() - rwidth, 0),
+                    new IR::Slice(cat->right, rwidth-1, expr->getL()));
+        }
+    }
+
+    while (auto cast = expr->e0->to<IR::Cast>()) {
+        if (expr->getH() < size_t(cast->expr->type->width_bits())) {
+            expr->e0 = cast->expr;
+        } else {
+            break; } }
+
+    // out-of-bound error has been caught in type checking
+    if (auto sl = expr->e0->to<IR::Slice>()) {
+        auto e = sl->e0;
+        auto hi = expr->getH() + sl->getL();
+        auto lo = expr->getL() + sl->getL();
+        return new IR::Slice(e, hi, lo);
+    }
+
+    auto slice_width = expr->getH() - expr->getL() + 1;
+    if (slice_width == (unsigned)expr->e0->type->width_bits() &&
+        !hasSideEffects(expr->e1))
+        return expr->e0;
+
     return expr;
 }
 

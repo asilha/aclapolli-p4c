@@ -20,6 +20,7 @@ limitations under the License.
 #include "ir/ir.h"
 #include "frontends/common/resolveReferences/referenceMap.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
+#include "frontends/p4/sideEffects.h"
 
 namespace P4 {
 
@@ -39,7 +40,6 @@ class KeyIsSimple {
  */
 class IsLikeLeftValue : public KeyIsSimple, public Inspector {
  protected:
-    TypeMap* typeMap;
     bool     simple;
 
  public:
@@ -107,12 +107,6 @@ class OrPolicy : public KeyIsSimple {
     }
 };
 
-class TableInsertions {
- public:
-    std::vector<const IR::Declaration_Variable*> declarations;
-    std::vector<const IR::AssignmentStatement*> statements;
-};
-
 /**
  * Transform complex table keys into simpler expressions.
  *
@@ -175,8 +169,11 @@ class DoSimplifyKey : public Transform {
  */
 class SimplifyKey : public PassManager {
  public:
-    SimplifyKey(ReferenceMap* refMap, TypeMap* typeMap, KeyIsSimple* key_policy) {
-        passes.push_back(new TypeChecking(refMap, typeMap));
+    SimplifyKey(ReferenceMap* refMap, TypeMap* typeMap, KeyIsSimple* key_policy,
+                TypeChecking* typeChecking = nullptr) {
+        if (!typeChecking)
+            typeChecking = new TypeChecking(refMap, typeMap);
+        passes.push_back(typeChecking);
         passes.push_back(new DoSimplifyKey(refMap, typeMap, key_policy));
         setName("SimplifyKey");
     }

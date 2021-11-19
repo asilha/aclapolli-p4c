@@ -47,9 +47,17 @@ void CreateBuiltins::postorder(IR::ExpressionValue* expression) {
             new IR::Vector<IR::Type>(), new IR::Vector<IR::Argument>());
 }
 
+void CreateBuiltins::postorder(IR::Entry* entry) {
+  // convert a const table entry with action "a;" into "a();"
+  if (entry->action->is<IR::PathExpression>())
+    entry->action = new IR::MethodCallExpression(
+      entry->action->srcInfo, entry->action,
+      new IR::Vector<IR::Type>(), new IR::Vector<IR::Argument>());
+}
+
 void CreateBuiltins::postorder(IR::ParserState* state) {
     if (state->selectExpression == nullptr) {
-        warning("%1%: implicit transition to `reject'", state);
+        warn(ErrorType::WARN_PARSER_TRANSITION, "%1%: implicit transition to `reject'", state);
         state->selectExpression = new IR::PathExpression(IR::ParserState::reject);
     }
 }
@@ -62,7 +70,8 @@ void CreateBuiltins::postorder(IR::ActionList* actions) {
         return;
     actions->push_back(
         new IR::ActionListElement(
-            new IR::Annotations({new IR::Annotation(IR::Annotation::defaultOnlyAnnotation, {})}),
+            new IR::Annotations(
+                {new IR::Annotation(IR::Annotation::defaultOnlyAnnotation, {})}),
             new IR::MethodCallExpression(
                 new IR::PathExpression(P4::P4CoreLibrary::instance.noAction.Id(actions->srcInfo)),
                 new IR::Vector<IR::Type>(), new IR::Vector<IR::Argument>())));

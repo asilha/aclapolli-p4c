@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header hdr {
@@ -53,9 +54,7 @@ control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
         }
         const entries = {
                         0 : NoAction();
-
         }
-
         size = 10;
     }
     apply {

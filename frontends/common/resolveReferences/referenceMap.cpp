@@ -20,6 +20,10 @@ limitations under the License.
 
 namespace P4 {
 
+MinimalNameGenerator::MinimalNameGenerator() {
+    usedNames.insert(P4::reservedWords.begin(), P4::reservedWords.end());
+}
+
 ReferenceMap::ReferenceMap() : ProgramMap("ReferenceMap"), isv1(false) { clear(); }
 
 void ReferenceMap::clear() {
@@ -33,7 +37,7 @@ void ReferenceMap::clear() {
 void ReferenceMap::setDeclaration(const IR::Path* path, const IR::IDeclaration* decl) {
     CHECK_NULL(path);
     CHECK_NULL(decl);
-    LOG1("Resolved " << path << " to " << decl);
+    LOG3("Resolved " << dbp(path) << " to " << dbp(decl));
     auto previous = get(pathToDeclaration, path);
     if (previous != nullptr && previous != decl)
         BUG("%1% already resolved to %2% instead of %3%",
@@ -46,7 +50,7 @@ void ReferenceMap::setDeclaration(const IR::Path* path, const IR::IDeclaration* 
 void ReferenceMap::setDeclaration(const IR::This* pointer, const IR::IDeclaration* decl) {
     CHECK_NULL(pointer);
     CHECK_NULL(decl);
-    LOG1("Resolved " << pointer << " to " << decl);
+    LOG3("Resolved " << dbp(pointer) << " to " << dbp(decl));
     auto previous = get(thisToDeclaration, pointer);
     if (previous != nullptr && previous != decl)
         BUG("%1% already resolved to %2% instead of %3%",
@@ -59,9 +63,9 @@ const IR::IDeclaration* ReferenceMap::getDeclaration(const IR::This* pointer, bo
     auto result = get(thisToDeclaration, pointer);
 
     if (result)
-        LOG1("Looking up " << pointer << " found " << result->getNode());
+        LOG3("Looking up " << dbp(pointer) << " found " << dbp(result));
     else
-        LOG1("Looking up " << pointer << " found nothing");
+        LOG3("Looking up " << dbp(pointer) << " found nothing");
 
     if (notNull)
         BUG_CHECK(result != nullptr, "Cannot find declaration for %1%", pointer);
@@ -73,9 +77,9 @@ const IR::IDeclaration* ReferenceMap::getDeclaration(const IR::Path* path, bool 
     auto result = get(pathToDeclaration, path);
 
     if (result)
-        LOG1("Looking up " << path << " found " << result->getNode());
+        LOG3("Looking up " << dbp(path) << " found " << dbp(result));
     else
-        LOG1("Looking up " << path << " found nothing");
+        LOG3("Looking up " << dbp(path) << " found nothing");
 
     if (notNull)
         BUG_CHECK(result != nullptr, "Cannot find declaration for %1%", path);
@@ -90,6 +94,25 @@ void ReferenceMap::dbprint(std::ostream &out) const {
 }
 
 cstring ReferenceMap::newName(cstring base) {
+    // Maybe in the future we'll maintain information with per-scope identifiers,
+    // but today we are content to generate globally-unique identifiers.
+
+    // If base has a suffix of the form _(\d+), then we discard the suffix.
+    // under the assumption that it is probably a generated suffix.
+    // This will not impact correctness.
+    unsigned len = base.size();
+    const char digits[] = "0123456789";
+    const char* s = base.c_str();
+    while (len > 0 && strchr(digits, s[len-1])) len--;
+    if (len > 0 && base[len - 1] == '_')
+        base = base.substr(0, len - 1);
+
+    cstring name = cstring::make_unique(usedNames, base, '_');
+    usedNames.insert(name);
+    return name;
+}
+
+cstring MinimalNameGenerator::newName(cstring base) {
     // Maybe in the future we'll maintain information with per-scope identifiers,
     // but today we are content to generate globally-unique identifiers.
 

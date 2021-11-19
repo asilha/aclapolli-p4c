@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -88,8 +89,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         routing.apply();
         if (hdr.data.f5 != hdr.data.f6) {
             test1.apply();
-        }
-        else {
+        } else {
             test2.apply();
         }
     }

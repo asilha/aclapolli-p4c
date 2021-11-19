@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # Copyright 2013-present Barefoot Networks, Inc.
 # Copyright 2018 VMware, Inc.
 #
@@ -23,7 +23,6 @@
    5. Evaluates the output with the expected result from the .stf file
 """
 
-from __future__ import print_function
 import sys
 import os
 import tempfile
@@ -50,6 +49,8 @@ PARSER.add_argument("-f", "--replace", action="store_true",
 PARSER.add_argument("-t", "--target", dest="target", default="test",
                     help="Specify the compiler backend target, "
                     "default is test")
+PARSER.add_argument("-e", "--extern-file", dest="extern", default="",
+                    help="Specify path additional file with C extern function definition")
 
 
 def import_from(module, name):
@@ -87,16 +88,7 @@ class Options(object):
         self.target = "test"            # The name of the target compiler
         # Actual location of the test framework
         self.testdir = os.path.dirname(os.path.realpath(__file__))
-
-
-def check_path(path):
-    """Checks if a path is an actual directory and converts the input
-        to an absolute path"""
-    if not os.path.exists(path):
-        msg = "{0} does not exist".format(path)
-        raise argparse.ArgumentTypeError(msg)
-    else:
-        return os.path.abspath(os.path.expanduser(path))
+        self.extern = ""                # Path to C file with extern definition
 
 
 def run_model(ebpf, stffile):
@@ -147,6 +139,10 @@ def run_test(options, argv):
     ebpf = EBPFFactory.create(tmpdir, options, template, output)
     if ebpf is None:
         return FAILURE
+
+    # If extern file is passed, --emit-externs flag is added by default to the p4 compiler
+    if options.extern:
+        argv.append("--emit-externs")
     # Compile the p4 file to the specified target
     result, expected_error = ebpf.compile_p4(argv)
 
@@ -177,12 +173,13 @@ if __name__ == '__main__':
     # Parse options and process argv
     args, argv = PARSER.parse_known_args()
     options = Options()
-    options.compiler = check_path(args.compiler)
-    options.p4filename = check_path(args.p4filename)
+    options.compiler = check_if_file(args.compiler)
+    options.p4filename = check_if_file(args.p4filename)
     options.verbose = args.verbose
     options.replace = args.replace
     options.cleanupTmp = args.nocleanup
     options.target = args.target
+    options.extern = args.extern
 
     # All args after '--' are intended for the p4 compiler
     argv = argv[1:]

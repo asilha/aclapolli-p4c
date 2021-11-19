@@ -38,18 +38,24 @@ namespace IR {
 template<class T>
 class IndexedVector : public Vector<T> {
     ordered_map<cstring, const IDeclaration*> declarations;
+    bool invalid = false;  // set when an error occurs; then we don't
+                           // expect the validity check to succeed.
 
     void insertInMap(const T* a) {
-        if (!a->template is<IDeclaration>())
+        if (a == nullptr || !a->template is<IDeclaration>())
             return;
         auto decl = a->template to<IDeclaration>();
         auto name = decl->getName().name;
         auto previous = declarations.find(name);
-        if (previous != declarations.end())
-            ::error("%1%: Duplicates declaration %2%", a, previous->second);
-        else
-            declarations[name] = decl; }
+        if (previous != declarations.end()) {
+            invalid = true;
+            ::error(ErrorType::ERR_DUPLICATE,
+                    "%1%: Duplicates declaration %2%", a, previous->second);
+        } else {
+            declarations[name] = decl; }}
     void removeFromMap(const T* a) {
+        if (a == nullptr)
+            return;
         auto decl = a->template to<IDeclaration>();
         if (decl == nullptr)
             return;
@@ -114,6 +120,9 @@ class IndexedVector : public Vector<T> {
     template<typename Container>
     iterator append(const Container &toAppend) {
         return insert(Vector<T>::end(), toAppend.begin(), toAppend.end()); }
+    template<typename Container>
+    iterator prepend(const Container &toAppend) {
+        return insert(Vector<T>::begin(), toAppend.begin(), toAppend.end()); }
     iterator insert(iterator i, const T* v) {
         insertInMap(v);
         return Vector<T>::insert(i, v); }
@@ -170,10 +179,14 @@ class IndexedVector : public Vector<T> {
 
     void toJSON(JSONGenerator &json) const override;
     static IndexedVector<T>* fromJSON(JSONLoader &json);
-    void check_valid() const {
+    void validate() const override {
+        if (invalid) return;  // don't crash the compiler because an error happened
         for (auto el : *this) {
-            auto it = declarations.find(el->getName());
-            BUG_CHECK(it != declarations.end() && it->second == el, "invalid element %1%", el); }
+            auto decl = el->template to<IR::IDeclaration>();
+            if (!decl) continue;
+            auto it = declarations.find(decl->getName());
+            BUG_CHECK(it != declarations.end() && it->second->getNode() == el->getNode(),
+                      "invalid element %1%", el); }
     }
 };
 

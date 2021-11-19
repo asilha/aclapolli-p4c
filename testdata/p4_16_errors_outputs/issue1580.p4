@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header ethernet_t {
@@ -48,9 +49,7 @@ control ingress(inout headers_t hdr, inout user_metadata_t meta, inout standard_
         }
         const entries = {
                         3 : a3();
-
         }
-
         default_action = a1;
     }
     apply {
@@ -63,15 +62,15 @@ control egress(inout headers_t hdr, inout user_metadata_t meta, inout standard_m
     }
 }
 
-control verify_checksum(inout headers_t hdr, inout user_metadata_t meta) {
+control verifyChecksum(inout headers_t hdr, inout user_metadata_t meta) {
     apply {
     }
 }
 
-control compute_checksum(inout headers_t hdr, inout user_metadata_t meta) {
+control computeChecksum(inout headers_t hdr, inout user_metadata_t meta) {
     apply {
     }
 }
 
-V1Switch(myParser(), verify_checksum(), ingress(), egress(), compute_checksum(), MyDeparser()) main;
+V1Switch(myParser(), verifyChecksum(), ingress(), egress(), computeChecksum(), MyDeparser()) main;
 

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -101,9 +102,9 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
     @name(".parse_ipv4") state parse_ipv4 {
         packet.extract<ipv4_t>(hdr.ipv4);
         transition select(hdr.ipv4.fragOffset, hdr.ipv4.ihl, hdr.ipv4.protocol) {
-            (13w0x0 &&& 13w0x0, 4w0x5 &&& 4w0xf, 8w0x1 &&& 8w0xff): parse_icmp;
-            (13w0x0 &&& 13w0x0, 4w0x5 &&& 4w0xf, 8w0x6 &&& 8w0xff): parse_tcp;
-            (13w0x0 &&& 13w0x0, 4w0x5 &&& 4w0xf, 8w0x11 &&& 8w0xff): parse_udp;
+            (13w0x0 &&& 13w0x0, 4w0x5, 8w0x1): parse_icmp;
+            (13w0x0 &&& 13w0x0, 4w0x5, 8w0x6): parse_tcp;
+            (13w0x0 &&& 13w0x0, 4w0x5, 8w0x11): parse_udp;
             default: accept;
         }
     }
@@ -174,7 +175,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         meta.ing_metadata.egress_port = egress_port;
     }
     @name(".discard") action discard() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".send_packet") action send_packet() {
         standard_metadata.egress_spec = meta.ing_metadata.egress_port;
@@ -283,15 +284,13 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
                 l2_match.apply();
             }
         }
-
-        if (hdr.tcp.isValid()) 
+        if (hdr.tcp.isValid()) {
             tcp_check.apply();
-        else 
-            if (hdr.udp.isValid()) 
-                udp_check.apply();
-            else 
-                if (hdr.icmp.isValid()) 
-                    icmp_check.apply();
+        } else if (hdr.udp.isValid()) {
+            udp_check.apply();
+        } else if (hdr.icmp.isValid()) {
+            icmp_check.apply();
+        }
         set_egress.apply();
     }
 }

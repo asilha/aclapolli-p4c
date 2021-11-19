@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<48> EthernetAddress;
@@ -107,10 +108,10 @@ control computeChecksum(inout headers hdr, inout metadata meta) {
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name("egress._drop") action _drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name("egress.drop_tbl") table drop_tbl_0 {
         key = {
@@ -118,10 +119,10 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
         }
         actions = {
             _drop();
-            NoAction_0();
+            NoAction_1();
         }
         size = 2;
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     apply {
         drop_tbl_0.apply();
@@ -143,9 +144,11 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         default_action = read_round();
     }
     apply {
-        if (hdr.ipv4.isValid()) 
-            if (hdr.myhdr.isValid()) 
+        if (hdr.ipv4.isValid()) {
+            if (hdr.myhdr.isValid()) {
                 round_tbl_0.apply();
+            }
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header easyroute_head_t {
@@ -21,7 +22,8 @@ struct headers {
 }
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    bit<64> tmp;
+    @name("ParserImpl.tmp") bit<64> tmp;
+    @name("ParserImpl.tmp_0") bit<64> tmp_0;
     @name(".parse_head") state parse_head {
         packet.extract<easyroute_head_t>(hdr.easyroute_head);
         transition select(hdr.easyroute_head.num_valid) {
@@ -34,8 +36,9 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
         transition accept;
     }
     @name(".start") state start {
-        tmp = packet.lookahead<bit<64>>();
-        transition select(tmp[63:0]) {
+        tmp_0 = packet.lookahead<bit<64>>();
+        tmp = tmp_0;
+        transition select(tmp) {
             64w0: parse_head;
             default: accept;
         }
@@ -48,10 +51,10 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name("._drop") action _drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".route") action route() {
         standard_metadata.egress_spec = (bit<9>)hdr.easyroute_port.port;
@@ -62,13 +65,13 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         actions = {
             _drop();
             route();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
         key = {
             hdr.easyroute_port.isValid(): exact @name("easyroute_port.$valid$") ;
         }
         size = 1;
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     apply {
         route_pkt_0.apply();

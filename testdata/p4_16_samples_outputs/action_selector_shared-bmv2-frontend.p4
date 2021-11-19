@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct H {
@@ -15,15 +16,15 @@ parser ParserI(packet_in pk, out H hdr, inout M meta, inout standard_metadata_t 
 }
 
 control IngressI(inout H hdr, inout M meta, inout standard_metadata_t smeta) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
+    }
+    @name("IngressI.drop") action drop() {
+        mark_to_drop(smeta);
     }
     @name("IngressI.drop") action drop_1() {
-        mark_to_drop();
-    }
-    @name("IngressI.drop") action drop_3() {
-        mark_to_drop();
+        mark_to_drop(smeta);
     }
     @name("IngressI.as") action_selector(HashAlgorithm.identity, 32w1024, 32w10) as_0;
     @name("IngressI.indirect_ws") table indirect_ws_0 {
@@ -31,10 +32,10 @@ control IngressI(inout H hdr, inout M meta, inout standard_metadata_t smeta) {
             meta.hash1: selector @name("meta.hash1") ;
         }
         actions = {
-            drop_1();
-            NoAction_0();
+            drop();
+            NoAction_1();
         }
-        const default_action = NoAction_0();
+        const default_action = NoAction_1();
         @name("ap_ws") implementation = as_0;
     }
     @name("IngressI.indirect_ws_1") table indirect_ws_2 {
@@ -42,10 +43,10 @@ control IngressI(inout H hdr, inout M meta, inout standard_metadata_t smeta) {
             meta.hash1: selector @name("meta.hash1") ;
         }
         actions = {
-            drop_3();
-            NoAction_3();
+            drop_1();
+            NoAction_2();
         }
-        const default_action = NoAction_3();
+        const default_action = NoAction_2();
         @name("ap_ws") implementation = as_0;
     }
     apply {

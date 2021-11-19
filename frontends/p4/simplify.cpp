@@ -20,7 +20,7 @@ limitations under the License.
 namespace P4 {
 
 const IR::Node* DoSimplifyControlFlow::postorder(IR::BlockStatement* statement) {
-    LOG1("Visiting " << dbp(getOriginal()));
+    LOG3("Visiting " << dbp(getOriginal()));
     if (statement->annotations->size() > 0)
         return statement;
     auto parent = getContext()->node;
@@ -60,8 +60,18 @@ const IR::Node* DoSimplifyControlFlow::postorder(IR::BlockStatement* statement) 
 }
 
 const IR::Node* DoSimplifyControlFlow::postorder(IR::IfStatement* statement)  {
-    LOG1("Visiting " << dbp(getOriginal()));
-    if (SideEffects::check(statement->condition, refMap, typeMap))
+    LOG3("Visiting " << dbp(getOriginal()));
+    if (auto lnot = statement->condition->to<IR::LNot>()) {
+        // swap branches
+        statement->condition = lnot->expr;
+        auto e = statement->ifFalse;
+        if (!e)
+            e = new IR::EmptyStatement();
+        statement->ifFalse = statement->ifTrue;
+        statement->ifTrue = e;
+    }
+
+    if (SideEffects::check(statement->condition, this, refMap, typeMap))
         return statement;
     if (statement->ifTrue->is<IR::EmptyStatement>() &&
         (statement->ifFalse == nullptr || statement->ifFalse->is<IR::EmptyStatement>()))
@@ -70,7 +80,7 @@ const IR::Node* DoSimplifyControlFlow::postorder(IR::IfStatement* statement)  {
 }
 
 const IR::Node* DoSimplifyControlFlow::postorder(IR::EmptyStatement* statement)  {
-    LOG1("Visiting " << dbp(getOriginal()));
+    LOG3("Visiting " << dbp(getOriginal()));
     auto parent = findContext<IR::Statement>();
     if (parent == nullptr ||  // in a ParserState or P4Action
         parent->is<IR::BlockStatement>())
@@ -80,7 +90,7 @@ const IR::Node* DoSimplifyControlFlow::postorder(IR::EmptyStatement* statement) 
 }
 
 const IR::Node* DoSimplifyControlFlow::postorder(IR::SwitchStatement* statement)  {
-    LOG1("Visiting " << dbp(getOriginal()));
+    LOG3("Visiting " << dbp(getOriginal()));
     if (statement->cases.empty()) {
         // The P4_16 spec prohibits expressions other than table application as
         // switch conditions.  The parser should have rejected programs for
@@ -100,7 +110,7 @@ const IR::Node* DoSimplifyControlFlow::postorder(IR::SwitchStatement* statement)
             if ((*it)->statement != nullptr)
                 break;
             else
-                ::warning("%1%: fallthrough with no statement", last); }
+                warn(ErrorType::WARN_MISSING, "%1%: fallthrough with no statement", last); }
         statement->cases.erase(it.base(), statement->cases.end()); }
     return statement;
 }

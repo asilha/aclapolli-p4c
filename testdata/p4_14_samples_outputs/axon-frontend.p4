@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct my_metadata_t {
@@ -34,7 +35,8 @@ struct headers {
 }
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    bit<64> tmp;
+    @name("ParserImpl.tmp") bit<64> tmp;
+    @name("ParserImpl.tmp_0") bit<64> tmp_0;
     @name(".parse_fwdHop") state parse_fwdHop {
         packet.extract<axon_hop_t>(hdr.axon_fwdHop.next);
         meta.my_metadata.fwdHopCount = meta.my_metadata.fwdHopCount + 8w255;
@@ -68,8 +70,9 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
         transition parse_next_revHop;
     }
     @name(".start") state start {
-        tmp = packet.lookahead<bit<64>>();
-        transition select(tmp[63:0]) {
+        tmp_0 = packet.lookahead<bit<64>>();
+        tmp = tmp_0;
+        transition select(tmp) {
             64w0: parse_head;
             default: accept;
         }
@@ -82,15 +85,15 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
     }
     @name("._drop") action _drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
-    @name("._drop") action _drop_2() {
-        mark_to_drop();
+    @name("._drop") action _drop_1() {
+        mark_to_drop(standard_metadata);
     }
     @name(".route") action route() {
         standard_metadata.egress_spec = (bit<9>)hdr.axon_fwdHop[0].port;
@@ -104,29 +107,30 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     @name(".drop_pkt") table drop_pkt_0 {
         actions = {
             _drop();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
         size = 1;
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     @name(".route_pkt") table route_pkt_0 {
         actions = {
-            _drop_2();
+            _drop_1();
             route();
-            @defaultonly NoAction_3();
+            @defaultonly NoAction_2();
         }
         key = {
             hdr.axon_head.isValid()     : exact @name("axon_head.$valid$") ;
             hdr.axon_fwdHop[0].isValid(): exact @name("axon_fwdHop[0].$valid$") ;
         }
         size = 1;
-        default_action = NoAction_3();
+        default_action = NoAction_2();
     }
     apply {
-        if (hdr.axon_head.axonLength != meta.my_metadata.headerLen) 
+        if (hdr.axon_head.axonLength != meta.my_metadata.headerLen) {
             drop_pkt_0.apply();
-        else 
+        } else {
             route_pkt_0.apply();
+        }
     }
 }
 

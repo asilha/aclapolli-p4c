@@ -4,6 +4,7 @@ error {
     IPv4ChecksumError
 }
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<32> IPv4Address;
@@ -60,12 +61,13 @@ struct mystruct1_t {
 }
 
 struct metadata {
-    mystruct1_t mystruct1;
-    bit<16>     hash1;
+    bit<4>  _mystruct1_a0;
+    bit<4>  _mystruct1_b1;
+    bit<16> _hash12;
 }
 
 parser parserI(packet_in pkt, out headers hdr, inout metadata meta, inout standard_metadata_t stdmeta) {
-    IPv4_up_to_ihl_only_h tmp;
+    @name("parserI.tmp") IPv4_up_to_ihl_only_h tmp;
     bit<8> tmp_4;
     state start {
         pkt.extract<ethernet_t>(hdr.ethernet);
@@ -94,29 +96,29 @@ parser parserI(packet_in pkt, out headers hdr, inout metadata meta, inout standa
 }
 
 control cIngress(inout headers hdr, inout metadata meta, inout standard_metadata_t stdmeta) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".NoAction") action NoAction_4() {
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
     }
-    @name(".NoAction") action NoAction_5() {
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
     }
-    @name("cIngress.foo1") action foo1(IPv4Address dstAddr) {
-        hdr.ipv4.dstAddr = dstAddr;
+    @name("cIngress.foo1") action foo1(@name("dstAddr") IPv4Address dstAddr_1) {
+        hdr.ipv4.dstAddr = dstAddr_1;
     }
-    @name("cIngress.foo1") action foo1_3(IPv4Address dstAddr) {
-        hdr.ipv4.dstAddr = dstAddr;
+    @name("cIngress.foo1") action foo1_1(@name("dstAddr") IPv4Address dstAddr_2) {
+        hdr.ipv4.dstAddr = dstAddr_2;
     }
-    @name("cIngress.foo1") action foo1_4(IPv4Address dstAddr) {
-        hdr.ipv4.dstAddr = dstAddr;
+    @name("cIngress.foo1") action foo1_2(@name("dstAddr") IPv4Address dstAddr_3) {
+        hdr.ipv4.dstAddr = dstAddr_3;
     }
-    @name("cIngress.foo2") action foo2(IPv4Address srcAddr) {
-        hdr.ipv4.srcAddr = srcAddr;
+    @name("cIngress.foo2") action foo2(@name("srcAddr") IPv4Address srcAddr_1) {
+        hdr.ipv4.srcAddr = srcAddr_1;
     }
-    @name("cIngress.foo2") action foo2_3(IPv4Address srcAddr) {
-        hdr.ipv4.srcAddr = srcAddr;
+    @name("cIngress.foo2") action foo2_1(@name("srcAddr") IPv4Address srcAddr_2) {
+        hdr.ipv4.srcAddr = srcAddr_2;
     }
-    @name("cIngress.foo2") action foo2_4(IPv4Address srcAddr) {
-        hdr.ipv4.srcAddr = srcAddr;
+    @name("cIngress.foo2") action foo2_2(@name("srcAddr") IPv4Address srcAddr_3) {
+        hdr.ipv4.srcAddr = srcAddr_3;
     }
     @name("cIngress.t0") table t0_0 {
         key = {
@@ -125,49 +127,49 @@ control cIngress(inout headers hdr, inout metadata meta, inout standard_metadata
         actions = {
             foo1();
             foo2();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
         size = 8;
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     @name("cIngress.t1") table t1_0 {
         key = {
             hdr.tcp.dstPort: exact @name("hdr.tcp.dstPort") ;
         }
         actions = {
-            foo1_3();
-            foo2_3();
-            @defaultonly NoAction_4();
+            foo1_1();
+            foo2_1();
+            @defaultonly NoAction_2();
         }
         size = 8;
-        default_action = NoAction_4();
+        default_action = NoAction_2();
     }
     @name("cIngress.t2") table t2_0 {
         actions = {
-            foo1_4();
-            foo2_4();
-            @defaultonly NoAction_5();
+            foo1_2();
+            foo2_2();
+            @defaultonly NoAction_3();
         }
         key = {
             hdr.tcp.srcPort       : exact @name("hdr.tcp.srcPort") ;
             hdr.ipv4.dstAddr[15:0]: selector @name("meta.hash1") ;
         }
         size = 16;
-        default_action = NoAction_5();
+        default_action = NoAction_3();
     }
-    @hidden action act() {
-        meta.hash1 = hdr.ipv4.dstAddr[15:0];
+    @hidden action issue1560bmv2l175() {
+        meta._hash12 = hdr.ipv4.dstAddr[15:0];
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue1560bmv2l175 {
         actions = {
-            act();
+            issue1560bmv2l175();
         }
-        const default_action = act();
+        const default_action = issue1560bmv2l175();
     }
     apply {
         t0_0.apply();
         t1_0.apply();
-        tbl_act.apply();
+        tbl_issue1560bmv2l175.apply();
         t2_0.apply();
     }
 }

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct headers_t {
@@ -26,11 +27,12 @@ control IngressImpl(inout headers_t hdr, inout metadata meta, inout standard_met
 }
 
 control EgressImpl(inout headers_t hdr, inout metadata meta, inout standard_metadata_t ostd) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name("EgressImpl.set_true") action set_true() {
-        if (meta.field == 8w0) 
+        if (meta.field == 8w0) {
             meta.cond = true;
+        }
     }
     @name("EgressImpl.change_cond") table change_cond_0 {
         key = {
@@ -38,9 +40,9 @@ control EgressImpl(inout headers_t hdr, inout metadata meta, inout standard_meta
         }
         actions = {
             set_true();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     apply {
         change_cond_0.apply();

@@ -44,7 +44,7 @@ control LjPipe(inout Parsed_rep p, in error parseError, in InControl inCtrl, out
     @name("LjPipe.Drop_1") action Drop_0() {
         outCtrl.outputPort = 4w0xf;
     }
-    @name("LjPipe.Forward") action Forward(PortId outPort) {
+    @name("LjPipe.Forward") action Forward(@name("outPort") PortId outPort) {
         outCtrl.outputPort = outPort;
     }
     @name("LjPipe.Enet_lkup") table Enet_lkup_0 {
@@ -58,34 +58,35 @@ control LjPipe(inout Parsed_rep p, in error parseError, in InControl inCtrl, out
         }
         default_action = Drop_0();
     }
-    @hidden action act() {
+    @hidden action lj_example70() {
         outCtrl.outputPort = 4w0xf;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_lj_example70 {
         actions = {
-            act();
+            lj_example70();
         }
-        const default_action = act();
+        const default_action = lj_example70();
     }
     apply {
-        tbl_act.apply();
-        if (p.arpa_pak.isValid()) 
+        tbl_lj_example70.apply();
+        if (p.arpa_pak.isValid()) {
             Enet_lkup_0.apply();
+        }
     }
 }
 
 control LJdeparse(inout Parsed_rep p, packet_out b) {
-    @hidden action act_0() {
+    @hidden action lj_example79() {
         b.emit<ARPA_hdr>(p.arpa_pak);
     }
-    @hidden table tbl_act_0 {
+    @hidden table tbl_lj_example79 {
         actions = {
-            act_0();
+            lj_example79();
         }
-        const default_action = act_0();
+        const default_action = lj_example79();
     }
     apply {
-        tbl_act_0.apply();
+        tbl_lj_example79.apply();
     }
 }
 

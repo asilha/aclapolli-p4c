@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct ingress_metadata_t {
@@ -129,8 +130,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
             if (meta.ing_metadata.f2 == hdr.vag.f2) {
                 i_t3.apply();
             }
-        }
-        else {
+        } else {
             i_t4.apply();
         }
     }

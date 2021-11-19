@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef standard_metadata_t std_meta_t;
@@ -40,7 +41,6 @@ control EgressI(inout H hdr, inout M meta, inout std_meta_t std_meta) {
                 do.apply(hdr, meta, std_meta);
             }
         }
-
     }
 }
 

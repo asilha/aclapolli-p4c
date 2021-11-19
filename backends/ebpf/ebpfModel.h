@@ -33,9 +33,10 @@ struct TableImpl_Model : public ::Model::Extern_Model {
 
 struct CounterArray_Model : public ::Model::Extern_Model {
     CounterArray_Model() : Extern_Model("CounterArray"),
-                           increment("increment"),
+                           increment("increment"), add("add"),
                            max_index("max_index"), sparse("sparse")  {}
     ::Model::Elem increment;
+    ::Model::Elem add;
     ::Model::Elem max_index;
     ::Model::Elem sparse;
 };
@@ -50,8 +51,7 @@ struct Filter_Model : public ::Model::Elem {
 // Keep this in sync with ebpf_model.p4
 class EBPFModel : public ::Model::Model {
  protected:
-    EBPFModel() : Model("0.1"),
-                  counterArray(),
+    EBPFModel() : counterArray(),
                   array_table("array_table"),
                   hash_table("hash_table"),
                   tableImplProperty("implementation"),

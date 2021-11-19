@@ -6,21 +6,21 @@ extern Generic<T> {
 
 extern void f<T>(in T arg);
 control caller() {
-    bit<5> cinst_tmp_0;
+    @name("caller.cinst.b") bit<5> cinst_b;
     @name("caller.cinst.x") Generic<bit<8>>(8w9) cinst_x;
-    @hidden action act() {
+    @hidden action generic1l28() {
         cinst_x.get<bit<32>>();
-        cinst_tmp_0 = cinst_x.get1<bit<5>, bit<10>>(10w0, 5w0);
-        f<bit<5>>(cinst_tmp_0);
+        cinst_b = cinst_x.get1<bit<5>, bit<10>>(10w0, 5w0);
+        f<bit<5>>(cinst_b);
     }
-    @hidden table tbl_act {
+    @hidden table tbl_generic1l28 {
         actions = {
-            act();
+            generic1l28();
         }
-        const default_action = act();
+        const default_action = generic1l28();
     }
     apply {
-        tbl_act.apply();
+        tbl_generic1l28.apply();
     }
 }
 

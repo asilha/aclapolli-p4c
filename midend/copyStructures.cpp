@@ -1,4 +1,4 @@
-/*
+ /*
 Copyright 2016 VMware, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,15 +15,55 @@ limitations under the License.
 */
 
 #include "copyStructures.h"
+#include "frontends/p4/alias.h"
 
 namespace P4 {
+
+const IR::Node* RemoveAliases::postorder(IR::AssignmentStatement* statement) {
+    auto type = typeMap->getType(statement->left);
+    if (!type->is<IR::Type_StructLike>())
+        return statement;
+
+    ReadsWrites rw(refMap);
+    if (!rw.mayAlias(statement->left, statement->right))
+        return statement;
+    auto tmp = refMap->newName("tmp");
+    auto decl = new IR::Declaration_Variable(IR::ID(tmp), type->getP4Type(), nullptr);
+    declarations.push_back(decl);
+    auto result = new IR::IndexedVector<IR::StatOrDecl>();
+    result->push_back(new IR::AssignmentStatement(
+        statement->srcInfo, new IR::PathExpression(tmp), statement->right));
+    result->push_back(new IR::AssignmentStatement(
+        statement->srcInfo, statement->left, new IR::PathExpression(tmp)));
+    LOG3("Inserted temporary " << decl << " for " << statement);
+    return new IR::BlockStatement(statement->srcInfo, *result);
+}
+
+const IR::Node* RemoveAliases::postorder(IR::P4Parser* parser) {
+    if (!declarations.empty()) {
+        parser->parserLocals.append(declarations);
+        declarations.clear();
+    }
+    return parser;
+}
+
+const IR::Node* RemoveAliases::postorder(IR::P4Control* control) {
+    if (!declarations.empty()) {
+        // prepend declarations: they must come before any actions
+        // that may have been modified
+        control->controlLocals.prepend(declarations);
+        declarations.clear();
+    }
+    return control;
+}
 
 const IR::Node* DoCopyStructures::postorder(IR::AssignmentStatement* statement) {
     auto ltype = typeMap->getType(statement->left, true);
     if (ltype->is<IR::Type_StructLike>()) {
         if (statement->right->is<IR::MethodCallExpression>()) {
             if (errorOnMethodCall)
-                ::error("%1%: functions or methods returning structures "
+                ::error(ErrorType::ERR_UNSUPPORTED_ON_TARGET,
+                        "%1%: functions or methods returning structures "
                         "are not supported on this target",
                         statement->right);
             return statement;
@@ -39,7 +79,7 @@ const IR::Node* DoCopyStructures::postorder(IR::AssignmentStatement* statement) 
                 retval->push_back(new IR::AssignmentStatement(statement->srcInfo, left, right));
                 index++;
             }
-        } else if (auto si = statement->right->to<IR::StructInitializerExpression>()) {
+        } else if (auto si = statement->right->to<IR::StructExpression>()) {
             for (auto f : strct->fields) {
                 auto right = si->components.getDeclaration<IR::NamedExpression>(f->name);
                 auto left = new IR::Member(statement->left, f->name);
@@ -51,12 +91,12 @@ const IR::Node* DoCopyStructures::postorder(IR::AssignmentStatement* statement) 
                 // Leave headers as they are -- copy_header will also copy the valid bit
                 return statement;
 
+            BUG_CHECK(statement->right->is<IR::PathExpression>() ||
+                      statement->right->is<IR::Member>() ||
+                      statement->right->is<IR::ArrayIndex>(),
+                      "%1%: Unexpected operation when eliminating struct copying",
+                      statement->right);
             for (auto f : strct->fields) {
-                BUG_CHECK(statement->right->is<IR::PathExpression>() ||
-                          statement->right->is<IR::Member>() ||
-                          statement->right->is<IR::ArrayIndex>(),
-                          "%1%: Unexpected operation when eliminating struct copying",
-                          statement->right);
                 auto right = new IR::Member(statement->right, f->name);
                 auto left = new IR::Member(statement->left, f->name);
                 retval->push_back(new IR::AssignmentStatement(statement->srcInfo, left, right));

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 package Pipeline<H, M>(Parser<H, M> p, Ingress<H, M> ig, Egress<H, M> eg, Deparser<H> dp);
@@ -65,5 +66,5 @@ control MyDeparser(packet_out b, in my_packet p) {
 
 Pipeline(MyParser(), MyIngress(), MyEgress(), MyDeparser()) p0;
 
-Switch(p0) main;
+Switch<my_packet, my_metadata, _, _>(p0) main;
 

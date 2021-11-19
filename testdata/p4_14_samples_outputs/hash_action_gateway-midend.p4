@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct counter_metadata_t {
@@ -16,8 +17,8 @@ header data_t {
 }
 
 struct metadata {
-    @name(".counter_metadata") 
-    counter_metadata_t counter_metadata;
+    bit<16> _counter_metadata_counter_index0;
+    bit<4>  _counter_metadata_counter_run1;
 }
 
 struct headers {
@@ -32,29 +33,30 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
     }
 }
 
+@name(".count1") @min_width(32) counter<bit<14>>(32w16384, CounterType.packets) count1;
+
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".count1") @min_width(32) counter(32w16384, CounterType.packets) count1_0;
-    @name(".set_index") action set_index(bit<16> index, bit<9> port) {
-        meta.counter_metadata.counter_index = index;
+    @name(".set_index") action set_index(@name("index") bit<16> index_1, @name("port") bit<9> port) {
+        meta._counter_metadata_counter_index0 = index_1;
         standard_metadata.egress_spec = port;
-        meta.counter_metadata.counter_run = 4w1;
+        meta._counter_metadata_counter_run1 = 4w1;
     }
     @name(".count_entries") action count_entries() {
-        count1_0.count((bit<32>)meta.counter_metadata.counter_index);
+        count1.count((bit<14>)meta._counter_metadata_counter_index0);
     }
     @name(".index_setter") table index_setter_0 {
         actions = {
             set_index();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
         key = {
             hdr.data.f1: exact @name("data.f1") ;
             hdr.data.f2: exact @name("data.f2") ;
         }
         size = 2048;
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     @name(".stats") table stats_0 {
         actions = {
@@ -64,8 +66,9 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     apply {
         index_setter_0.apply();
-        if (meta.counter_metadata.counter_run == 4w1) 
+        if (meta._counter_metadata_counter_run1 == 4w1) {
             stats_0.apply();
+        }
     }
 }
 

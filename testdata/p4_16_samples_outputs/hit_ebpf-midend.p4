@@ -44,13 +44,12 @@ parser prs(packet_in p, out Headers_t headers) {
 }
 
 control pipe(inout Headers_t headers, out bool pass) {
-    bool tmp;
-    bool hasReturned;
-    @name(".NoAction") action NoAction_0() {
+    @name("pipe.hasReturned") bool hasReturned;
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name("pipe.Reject") action Reject(IPv4Address add) {
+    @name("pipe.Reject") action Reject(@name("add") IPv4Address add_1) {
         pass = false;
-        headers.ipv4.srcAddr = add;
+        headers.ipv4.srcAddr = add_1;
     }
     @name("pipe.Check_src_ip") table Check_src_ip_0 {
         key = {
@@ -58,59 +57,43 @@ control pipe(inout Headers_t headers, out bool pass) {
         }
         actions = {
             Reject();
-            NoAction_0();
+            NoAction_1();
         }
         implementation = hash_table(32w1024);
-        const default_action = NoAction_0();
+        const default_action = NoAction_1();
     }
-    @hidden action act() {
+    @hidden action hit_ebpf63() {
         pass = false;
         hasReturned = true;
     }
-    @hidden action act_0() {
+    @hidden action hit_ebpf60() {
         hasReturned = false;
         pass = true;
     }
-    @hidden action act_1() {
-        tmp = true;
-    }
-    @hidden action act_2() {
-        tmp = false;
-    }
-    @hidden table tbl_act {
+    @hidden table tbl_hit_ebpf60 {
         actions = {
-            act_0();
+            hit_ebpf60();
         }
-        const default_action = act_0();
+        const default_action = hit_ebpf60();
     }
-    @hidden table tbl_act_0 {
+    @hidden table tbl_hit_ebpf63 {
         actions = {
-            act();
+            hit_ebpf63();
         }
-        const default_action = act();
-    }
-    @hidden table tbl_act_1 {
-        actions = {
-            act_1();
-        }
-        const default_action = act_1();
-    }
-    @hidden table tbl_act_2 {
-        actions = {
-            act_2();
-        }
-        const default_action = act_2();
+        const default_action = hit_ebpf63();
     }
     apply {
-        tbl_act.apply();
-        if (!headers.ipv4.isValid()) {
-            tbl_act_0.apply();
+        tbl_hit_ebpf60.apply();
+        if (headers.ipv4.isValid()) {
+            ;
+        } else {
+            tbl_hit_ebpf63.apply();
         }
-        if (!hasReturned) 
-            if (Check_src_ip_0.apply().hit) 
-                tbl_act_1.apply();
-            else 
-                tbl_act_2.apply();
+        if (hasReturned) {
+            ;
+        } else if (Check_src_ip_0.apply().hit) {
+            ;
+        }
     }
 }
 

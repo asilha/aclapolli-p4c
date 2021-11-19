@@ -18,12 +18,14 @@ limitations under the License.
 #define _IR_JSON_LOADER_H_
 
 #include <assert.h>
-#include <boost/optional.hpp>
-#include <gmpxx.h>
+
 #include <string>
 #include <map>
 #include <unordered_map>
 #include <utility>
+
+#include <boost/optional.hpp>
+
 #include "lib/cstring.h"
 #include "lib/indent.h"
 #include "lib/match.h"
@@ -46,7 +48,7 @@ class JSONLoader {
 
  public:
     std::unordered_map<int, IR::Node*> &node_refs;
-    JsonData *json;
+    JsonData *json = nullptr;
 
     explicit JSONLoader(std::istream &in) : node_refs(*(new std::unordered_map<int, IR::Node*>()))
     { in >> json; }
@@ -68,11 +70,22 @@ class JSONLoader {
         int id = json->to<JsonObject>()->get_id();
         if (id >= 0) {
             if (node_refs.find(id) == node_refs.end()) {
-                if (auto fn = get(IR::unpacker_table, json->to<JsonObject>()->get_type()))
-                    node_refs[id] = fn(*this);
-                else
-                    return nullptr; }  // invalid json exception?
-            return node_refs[id]; }
+                if (auto fn = get(IR::unpacker_table, json->to<JsonObject>()->get_type())) {
+                        node_refs[id] = fn(*this);
+                        // Creating JsonObject from source_info read from jsonFile
+                        // and setting SourceInfo for each node
+                        // when "--fromJSON" flag is used
+                        JsonObject* obj = new JsonObject(json->to<JsonObject>()->get_sourceJson());
+                        if (obj->hasSrcInfo() == true) {
+                                node_refs[id]->srcInfo = Util::SourceInfo(obj->get_filename(), \
+                                    obj->get_line(), obj->get_column(), obj->get_sourceFragment());
+                        }
+                    } else {
+                        return nullptr;
+                    }  // invalid json exception?
+            }
+            return node_refs[id];
+        }
         return nullptr;  // invalid json exception?
     }
 
@@ -186,13 +199,17 @@ class JSONLoader {
     template<typename T>
     typename std::enable_if<std::is_integral<T>::value>::type
     unpack_json(T &v) { v = *json->to<JsonNumber>(); }
-    void unpack_json(mpz_class &v) { v = json->to<JsonNumber>()->val; }
+    void unpack_json(big_int &v) { v = json->to<JsonNumber>()->val; }
     void unpack_json(cstring &v) { if (!json->is<JsonNull>()) v = *json->to<std::string>(); }
     void unpack_json(IR::ID &v) { if (!json->is<JsonNull>()) v.name = *json->to<std::string>(); }
 
     void unpack_json(LTBitMatrix &m) {
         if (auto *s = json->to<std::string>())
             s->c_str() >> m; }
+
+    void unpack_json(bitvec &v) {
+        if (auto *s = json->to<std::string>())
+            s->c_str() >> v; }
 
     template<typename T> typename std::enable_if<std::is_enum<T>::value>::type
     unpack_json(T &v) {
@@ -214,8 +231,7 @@ class JSONLoader {
         load("base", base);
         load("hasWidth", hasWidth);
 
-        UnparsedConstant result {text, skip, base, hasWidth};
-        v = &result;
+        v = new UnparsedConstant({text, skip, base, hasWidth});
     }
 
     template<typename T>
@@ -258,6 +274,14 @@ class JSONLoader {
     template<typename T>
     void load(JsonData* json, T &v) {
         JSONLoader(json, node_refs).unpack_json(v); }
+
+    template<typename T>
+    void load(const std::string field, T *&v) {
+        JSONLoader loader(*this, field);
+        if (loader.json == nullptr) {
+            v = nullptr;
+        } else {
+            loader.unpack_json(v); } }
 
     template<typename T>
     void load(const std::string field, T &v) {

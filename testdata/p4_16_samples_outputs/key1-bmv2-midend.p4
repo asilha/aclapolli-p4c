@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header hdr {
@@ -43,7 +44,7 @@ control deparser(packet_out b, in Headers h) {
 
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
     bit<32> key_0;
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name("ingress.c.a") action c_a_0() {
         h.h.b = h.h.a;
@@ -54,32 +55,32 @@ control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
         }
         actions = {
             c_a_0();
-            NoAction_0();
+            NoAction_1();
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
-    @hidden action act() {
+    @hidden action key1bmv2l28() {
         key_0 = h.h.a + 32w1;
     }
-    @hidden action act_0() {
+    @hidden action arithinlineskeleton51() {
         sm.egress_spec = 9w0;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_key1bmv2l28 {
         actions = {
-            act();
+            key1bmv2l28();
         }
-        const default_action = act();
+        const default_action = key1bmv2l28();
     }
-    @hidden table tbl_act_0 {
+    @hidden table tbl_arithinlineskeleton51 {
         actions = {
-            act_0();
+            arithinlineskeleton51();
         }
-        const default_action = act_0();
+        const default_action = arithinlineskeleton51();
     }
     apply {
-        tbl_act.apply();
+        tbl_key1bmv2l28.apply();
         c_t.apply();
-        tbl_act_0.apply();
+        tbl_arithinlineskeleton51.apply();
     }
 }
 

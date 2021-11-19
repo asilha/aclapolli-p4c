@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header ethernet_t {
@@ -22,11 +23,12 @@ parser ParserImpl(packet_in packet, out headers_t hdr, inout meta_t meta, inout 
 }
 
 control ingress(inout headers_t hdr, inout meta_t meta, inout standard_metadata_t standard_metadata) {
-    bit<16> rand_int_0;
+    @name("ingress.rand_int") bit<16> rand_int_0;
     apply {
         random<bit<16>>(rand_int_0, 16w0, 16w49151);
-        if (rand_int_0 < 16w32768) 
-            mark_to_drop();
+        if (rand_int_0 < 16w32768) {
+            mark_to_drop(standard_metadata);
+        }
     }
 }
 

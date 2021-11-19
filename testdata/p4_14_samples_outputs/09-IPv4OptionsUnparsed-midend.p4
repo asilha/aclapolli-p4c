@@ -16,6 +16,7 @@ header ipv4_t_1 {
 }
 
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header ethernet_t {
@@ -39,7 +40,6 @@ header ipv4_t {
     bit<16>     hdrChecksum;
     bit<32>     srcAddr;
     bit<32>     dstAddr;
-    @length(((bit<32>)ihl << 2 << 3) + 32w4294967136) 
     varbit<352> options;
 }
 
@@ -63,9 +63,8 @@ struct headers {
 }
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    ipv4_t_1 tmp_hdr_0;
-    ipv4_t_1 tmp;
-    bit<160> tmp_0;
+    @name("ParserImpl.tmp_hdr") ipv4_t_1 tmp_hdr_0;
+    bit<160> tmp;
     @name(".parse_ethernet") state parse_ethernet {
         packet.extract<ethernet_t>(hdr.ethernet);
         transition select(hdr.ethernet.ethertype) {
@@ -75,24 +74,23 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
         }
     }
     @name(".parse_ipv4") state parse_ipv4 {
-        tmp_0 = packet.lookahead<bit<160>>();
-        tmp.setValid();
-        tmp.version = tmp_0[159:156];
-        tmp.ihl = tmp_0[155:152];
-        tmp.diffserv = tmp_0[151:144];
-        tmp.totalLen = tmp_0[143:128];
-        tmp.identification = tmp_0[127:112];
-        tmp.reserved_0 = tmp_0[111:111];
-        tmp.df = tmp_0[110:110];
-        tmp.mf = tmp_0[109:109];
-        tmp.fragOffset = tmp_0[108:96];
-        tmp.ttl = tmp_0[95:88];
-        tmp.protocol = tmp_0[87:80];
-        tmp.hdrChecksum = tmp_0[79:64];
-        tmp.srcAddr = tmp_0[63:32];
-        tmp.dstAddr = tmp_0[31:0];
-        tmp_hdr_0 = tmp;
-        packet.extract<ipv4_t>(hdr.ipv4, ((bit<32>)tmp_hdr_0.ihl << 2 << 3) + 32w4294967136);
+        tmp = packet.lookahead<bit<160>>();
+        tmp_hdr_0.setValid();
+        tmp_hdr_0.version = tmp[159:156];
+        tmp_hdr_0.ihl = tmp[155:152];
+        tmp_hdr_0.diffserv = tmp[151:144];
+        tmp_hdr_0.totalLen = tmp[143:128];
+        tmp_hdr_0.identification = tmp[127:112];
+        tmp_hdr_0.reserved_0 = tmp[111:111];
+        tmp_hdr_0.df = tmp[110:110];
+        tmp_hdr_0.mf = tmp[109:109];
+        tmp_hdr_0.fragOffset = tmp[108:96];
+        tmp_hdr_0.ttl = tmp[95:88];
+        tmp_hdr_0.protocol = tmp[87:80];
+        tmp_hdr_0.hdrChecksum = tmp[79:64];
+        tmp_hdr_0.srcAddr = tmp[63:32];
+        tmp_hdr_0.dstAddr = tmp[31:0];
+        packet.extract<ipv4_t>(hdr.ipv4, ((bit<32>)tmp[155:152] << 5) + 32w4294967136);
         transition accept;
     }
     @name(".parse_vlan_tag") state parse_vlan_tag {
@@ -104,24 +102,25 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
         }
     }
     @name(".start") state start {
+        tmp_hdr_0.setInvalid();
         transition parse_ethernet;
     }
 }
 
 control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
     }
     @name(".nop") action nop() {
     }
     @name(".t2") table t2_0 {
         actions = {
             nop();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_2();
         }
         key = {
             hdr.ethernet.srcAddr: exact @name("ethernet.srcAddr") ;
         }
-        default_action = NoAction_0();
+        default_action = NoAction_2();
     }
     apply {
         t2_0.apply();
@@ -129,19 +128,19 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_1() {
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
     }
     @name(".nop") action nop_2() {
     }
     @name(".t1") table t1_0 {
         actions = {
             nop_2();
-            @defaultonly NoAction_1();
+            @defaultonly NoAction_3();
         }
         key = {
             hdr.ethernet.dstAddr: exact @name("ethernet.dstAddr") ;
         }
-        default_action = NoAction_1();
+        default_action = NoAction_3();
     }
     apply {
         t1_0.apply();

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header Header {
@@ -13,7 +14,7 @@ struct M {
 }
 
 parser prs(packet_in p, out Headers h, inout M meta, inout standard_metadata_t s) {
-    Header arg;
+    @name("prs.arg") Header arg;
     state start {
         p.extract<Header>(arg);
         p.extract<Header>(h.h);

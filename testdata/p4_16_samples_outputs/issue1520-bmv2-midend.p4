@@ -1,8 +1,13 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
-struct headers {
+header Header {
     bit<16> x;
+}
+
+struct headers {
+    Header h;
 }
 
 struct metadata {
@@ -10,7 +15,7 @@ struct metadata {
 
 parser MyParser(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     state start {
-        hdr.x = 16w0;
+        hdr.h.x = 16w0;
         transition accept;
     }
 }
@@ -23,18 +28,18 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     @name("MyIngress.h.c1.r") register<bit<16>>(32w8) h_c1_r;
     @name("MyIngress.h.c2.r") register<bit<16>>(32w8) h_c2_r;
-    @hidden action act() {
-        h_c1_r.read(hdr.x, 32w0);
-        h_c2_r.read(hdr.x, 32w0);
+    @hidden action issue1520bmv2l33() {
+        h_c1_r.read(hdr.h.x, 32w0);
+        h_c2_r.read(hdr.h.x, 32w0);
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue1520bmv2l33 {
         actions = {
-            act();
+            issue1520bmv2l33();
         }
-        const default_action = act();
+        const default_action = issue1520bmv2l33();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue1520bmv2l33.apply();
     }
 }
 

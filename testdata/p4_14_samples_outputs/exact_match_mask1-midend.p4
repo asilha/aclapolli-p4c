@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -26,9 +27,9 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     bit<32> key_0;
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name(".setb1") action setb1(bit<8> val, bit<9> port) {
+    @name(".setb1") action setb1(@name("val") bit<8> val, @name("port") bit<9> port) {
         hdr.data.b1 = val;
         standard_metadata.egress_spec = port;
     }
@@ -38,24 +39,24 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         actions = {
             setb1();
             noop();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
         key = {
             key_0: exact @name("data.f1") ;
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
-    @hidden action act() {
+    @hidden action exact_match_mask1l41() {
         key_0 = hdr.data.f1 & 32w0xff00ff;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_exact_match_mask1l41 {
         actions = {
-            act();
+            exact_match_mask1l41();
         }
-        const default_action = act();
+        const default_action = exact_match_mask1l41();
     }
     apply {
-        tbl_act.apply();
+        tbl_exact_match_mask1l41.apply();
         test1_0.apply();
     }
 }

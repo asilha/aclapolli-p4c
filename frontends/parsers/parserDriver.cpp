@@ -1,13 +1,15 @@
 #include "parserDriver.h"
 
-#include <boost/algorithm/string/predicate.hpp>
-#include <boost/format.hpp>
-
 #include <cerrno>
 #include <cstdio>
 #include <iostream>
 #include <sstream>
 
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/format.hpp>
+
+
+#include "frontends/common/options.h"
 #include "frontends/common/constantFolding.h"
 #include "frontends/parsers/p4/p4lexer.hpp"
 #include "frontends/parsers/p4/p4AnnotationLexer.hpp"
@@ -193,6 +195,30 @@ P4ParserDriver::parseKvList(const Util::SourceInfo& srcInfo,
             P4AnnotationLexer::KV_LIST, srcInfo, body);
 }
 
+/* static */ const IR::Vector<IR::Expression>*
+P4ParserDriver::parseConstantList(const Util::SourceInfo& srcInfo,
+                                  const IR::Vector<IR::AnnotationToken>& body) {
+    P4ParserDriver driver;
+    return driver.parse<IR::Vector<IR::Expression>>(
+            P4AnnotationLexer::INTEGER_LIST, srcInfo, body);
+}
+
+/* static */ const IR::Vector<IR::Expression>*
+P4ParserDriver::parseConstantOrStringLiteralList(const Util::SourceInfo& srcInfo,
+                                                 const IR::Vector<IR::AnnotationToken>& body) {
+    P4ParserDriver driver;
+    return driver.parse<IR::Vector<IR::Expression>>(
+            P4AnnotationLexer::INTEGER_OR_STRING_LITERAL_LIST, srcInfo, body);
+}
+
+/* static */ const IR::Vector<IR::Expression>*
+P4ParserDriver::parseStringLiteralList(const Util::SourceInfo& srcInfo,
+                                       const IR::Vector<IR::AnnotationToken>& body) {
+    P4ParserDriver driver;
+    return driver.parse<IR::Vector<IR::Expression>>(
+            P4AnnotationLexer::STRING_LITERAL_LIST, srcInfo, body);
+}
+
 /* static */ const IR::Expression*
 P4ParserDriver::parseExpression(const Util::SourceInfo& srcInfo,
                                 const IR::Vector<IR::AnnotationToken>& body) {
@@ -207,6 +233,14 @@ P4ParserDriver::parseConstant(const Util::SourceInfo& srcInfo,
     P4ParserDriver driver;
     return driver.parse<IR::Constant>(
             P4AnnotationLexer::INTEGER, srcInfo, body);
+}
+
+/* static */ const IR::Expression*
+P4ParserDriver::parseConstantOrStringLiteral(const Util::SourceInfo& srcInfo,
+                                             const IR::Vector<IR::AnnotationToken>& body) {
+    P4ParserDriver driver;
+    return driver.parse<IR::Expression>(
+            P4AnnotationLexer::INTEGER_OR_STRING_LITERAL, srcInfo, body);
 }
 
 /* static */ const IR::StringLiteral*
@@ -265,15 +299,13 @@ P4ParserDriver::parseStringLiteralTriple(const Util::SourceInfo& srcInfo,
             P4AnnotationLexer::STRING_LITERAL_TRIPLE, srcInfo, body);
 }
 
-/* static */ void P4ParserDriver::checkShift(const Util::SourceInfo& l,
-                                             const Util::SourceInfo& r) {
-    if (!l.isValid() || !r.isValid())
-        BUG("Source position not available!");
-    const Util::SourcePosition& f = l.getStart();
-    const Util::SourcePosition& s = r.getStart();
-    if (f.getLineNumber() != s.getLineNumber() ||
-        f.getColumnNumber() != s.getColumnNumber() - 1)
-        ::error("Syntax error at shift operator: %1%", l);
+/* static */ const IR::Vector<IR::Expression>*
+P4ParserDriver::parseP4rtTranslationAnnotation(
+    const Util::SourceInfo& srcInfo,
+    const IR::Vector<IR::AnnotationToken>& body) {
+    P4ParserDriver driver;
+    return driver.parse<IR::Vector<IR::Expression>>(
+            P4AnnotationLexer::P4RT_TRANSLATION_ANNOTATION, srcInfo, body);
 }
 
 void P4ParserDriver::onReadErrorDeclaration(IR::Type_Error* error) {
@@ -342,7 +374,8 @@ void V1ParserDriver::clearPragmas() {
 }
 
 void V1ParserDriver::addPragma(IR::Annotation* pragma) {
-    currentPragmas.push_back(pragma);
+    if (!P4CContext::get().options().isAnnotationDisabled(pragma))
+        currentPragmas.push_back(pragma);
 }
 
 IR::Vector<IR::Annotation> V1ParserDriver::takePragmasAsVector() {

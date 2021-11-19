@@ -32,13 +32,12 @@ bool DoExpandEmit::expandArg(
             auto index = new IR::Constant(i);
             auto element = new IR::Argument(
                 arg->srcInfo, arg->name, new IR::ArrayIndex(arg->expression, index));
-            result->push_back(element);
-            resultTypes->push_back(st->elementType);
+            expandArg(st->elementType, element, result, resultTypes);
         }
         return true;
     } else if (auto tup = type->to<IR::Type_Tuple>()) {
         auto le = arg->expression->to<IR::ListExpression>();
-        BUG_CHECK(le != nullptr && le->size() == tup->size(), "%1%: not a list?", arg);
+        BUG_CHECK(le != nullptr && le->size() == tup->getSize(), "%1%: not a list?", arg);
         for (size_t i = 0; i < le->size(); i++) {
             auto expr = new IR::Argument(arg->srcInfo, arg->name, le->components.at(i));
             auto type = tup->components.at(i);
@@ -65,7 +64,7 @@ const IR::Node* DoExpandEmit::postorder(IR::MethodCallStatement* statement) {
         if (em->originalExternType->name.name == P4::P4CoreLibrary::instance.packetOut.name &&
             em->method->name.name == P4::P4CoreLibrary::instance.packetOut.emit.name) {
             if (em->expr->arguments->size() != 1) {
-                ::error("%1%: expected exactly 1 argument", statement);
+                ::error(ErrorType::ERR_UNEXPECTED, "%1%: expected exactly 1 argument", statement);
                 return statement;
             }
 

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef standard_metadata_t std_meta_t;
@@ -30,12 +31,7 @@ control ComputeChecksumI(inout H hdr, inout M meta) {
 }
 
 control IngressI(inout H hdr, inout M meta, inout std_meta_t std_meta) {
-    H hdr_0;
     apply {
-        hdr_0 = hdr;
-        hdr = hdr_0;
-        hdr_0 = hdr;
-        hdr = hdr_0;
     }
 }
 

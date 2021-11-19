@@ -17,6 +17,8 @@ limitations under the License.
 #ifndef _FRONTENDS_P4_DEF_USE_H_
 #define _FRONTENDS_P4_DEF_USE_H_
 
+#include "lib/ordered_map.h"
+#include "lib/ordered_set.h"
 #include "ir/ir.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
 
@@ -27,16 +29,18 @@ class LocationSet;
 
 /// Abstraction for something that is has a left value (variable, parameter)
 class StorageLocation : public IHasDbPrint {
+    static unsigned crtid;
+
  public:
     virtual ~StorageLocation() {}
+    unsigned id;
     const IR::Type* type;
     const cstring name;
-    StorageLocation(const IR::Type* type, cstring name) : type(type), name(name)
+    StorageLocation(const IR::Type* type, cstring name) : id(crtid++), type(type), name(name)
     { CHECK_NULL(type); }
     template <class T>
     const T* to() const {
         auto result = dynamic_cast<const T*>(this);
-        CHECK_NULL(result);
         return result;
     }
     template <class T>
@@ -44,8 +48,8 @@ class StorageLocation : public IHasDbPrint {
         auto result = dynamic_cast<const T*>(this);
         return result != nullptr;
     }
-    virtual void dbprint(std::ostream& out) const {
-        out << name;
+    void dbprint(std::ostream& out) const override {
+        out << id << " " << name;
     }
     cstring toString() const { return name; }
 
@@ -64,42 +68,52 @@ class StorageLocation : public IHasDbPrint {
     It could be either a scalar variable, or a field of a struct, etc. */
 class BaseLocation : public StorageLocation {
  public:
-    // We can use this for tuples because tuples have no field accessors,
-    // so we treat them as monolithic objects.
     BaseLocation(const IR::Type* type, cstring name) :
-            StorageLocation(type, name)
-    { BUG_CHECK(type->is<IR::Type_Bits>() || type->is<IR::Type_Enum>() ||
-                type->is<IR::Type_Boolean>() || type->is<IR::Type_Var>() ||
-                type->is<IR::Type_Tuple>() || type->is<IR::Type_Error>() ||
-                type->is<IR::Type_Varbits>() || type->is<IR::Type_Newtype>() ||
-                type->is<IR::Type_SerEnum>(),
-                "%1%: unexpected type", type); }
+            StorageLocation(type, name) {
+        if (auto tt = type->to<IR::Type_Tuple>())
+            BUG_CHECK(tt->getSize() == 0, "%1%: tuples with fields are not base locations", tt);
+        else if (auto ts = type->to<IR::Type_StructLike>())
+            BUG_CHECK(ts->fields.size() == 0,
+                      "%1%: structs with fields are not base locations", tt);
+        else
+            BUG_CHECK(type->is<IR::Type_Bits>() || type->is<IR::Type_Enum>() ||
+                      type->is<IR::Type_Boolean>() || type->is<IR::Type_Var>() ||
+                      type->is<IR::Type_Error>() ||
+                      type->is<IR::Type_Varbits>() || type->is<IR::Type_Newtype>() ||
+                      type->is<IR::Type_SerEnum>() || type->is<IR::Type_List>(),
+                      "%1%: unexpected type", type); }
     void addValidBits(LocationSet*) const override {}
     void addLastIndexField(LocationSet*) const override {}
     void removeHeaders(LocationSet* result) const override;
 };
 
-/** Represents the locations for element of a struct, header or union */
-class StructLocation : public StorageLocation {
-    std::map<cstring, const StorageLocation*> fieldLocations;
+/// Base class for location sets that contain fields
+class WithFieldsLocation : public StorageLocation {
+ protected:
+    ordered_map<cstring, const StorageLocation*> fieldLocations;
     friend class StorageFactory;
-
-    void addField(cstring name, StorageLocation* field)
+    WithFieldsLocation(const IR::Type* type, cstring name) :
+            StorageLocation(type, name) {}
+ public:
+    void createField(cstring name, StorageLocation* field)
     { fieldLocations.emplace(name, field); CHECK_NULL(field); }
     void replaceField(cstring field, StorageLocation* replacement)
     { fieldLocations[field] = replacement; }
-
- public:
-    StructLocation(const IR::Type* type, cstring name) :
-            StorageLocation(type, name) {
-        BUG_CHECK(type->is<IR::Type_StructLike>(),
-                  "%1%: unexpected type", type);
-    }
-    IterValues<std::map<cstring, const StorageLocation*>::const_iterator> fields() const
+    IterValues<ordered_map<cstring, const StorageLocation*>::const_iterator> fields() const
     { return Values(fieldLocations); }
     void dbprint(std::ostream& out) const override {
         for (auto f : fieldLocations)
             out << *f.second << " ";
+    }
+};
+
+/** Represents the locations for a struct, header or union */
+class StructLocation : public WithFieldsLocation {
+ public:
+    StructLocation(const IR::Type* type, cstring name) :
+            WithFieldsLocation(type, name) {
+        BUG_CHECK(type->is<IR::Type_StructLike>(),
+                  "%1%: unexpected type", type);
     }
     void addField(cstring field, LocationSet* addTo) const;
     void addValidBits(LocationSet* result) const override;
@@ -110,44 +124,58 @@ class StructLocation : public StorageLocation {
     bool isStruct() const { return type->is<IR::Type_Struct>(); }
 };
 
-class ArrayLocation : public StorageLocation {
+/// Interface for locations that support an index operation
+class IndexedLocation : public StorageLocation {
+ protected:
     std::vector<const StorageLocation*> elements;
-    const StorageLocation* lastIndexField;  // accessed by lastIndex
     friend class StorageFactory;
 
-    void addElement(unsigned index, StorageLocation* element)
+    void createElement(unsigned index, StorageLocation* element)
     { elements[index] = element; CHECK_NULL(element); }
-
  public:
-    ArrayLocation(const IR::Type* type, cstring name) :
-            StorageLocation(type, name), lastIndexField(nullptr) {
-        BUG_CHECK(type->is<IR::Type_Stack>(), "%1%: unexpected type", type);
-        auto stack = type->to<IR::Type_Stack>();
-        elements.resize(stack->getSize());
+    IndexedLocation(const IR::Type* type, cstring name) : StorageLocation(type, name) {
+        CHECK_NULL(type);
+        auto it = type->to<IR::Type_Indexed>();
+        BUG_CHECK(it != nullptr, "%1%: unexpected type", type);
+        elements.resize(it->getSize());
     }
-    void setLastIndexField(const StorageLocation* location)
-    { lastIndexField = location; }
-    const StorageLocation* getLastIndexField() const
-    { return lastIndexField; }
+    void addElement(unsigned index, LocationSet* result) const;
     std::vector<const StorageLocation*>::const_iterator begin() const
     { return elements.cbegin(); }
     std::vector<const StorageLocation*>::const_iterator end() const
     { return elements.cend(); }
+};
+
+/** Represents the locations for a tuple or list */
+class TupleLocation : public IndexedLocation {
+ public:
+    TupleLocation(const IR::Type* type, cstring name) : IndexedLocation(type, name) {}
+    size_t getSize() const { return elements.size(); }
+    void addValidBits(LocationSet*) const override {}
+    void addLastIndexField(LocationSet*) const override {}
+    void removeHeaders(LocationSet* result) const override;
+};
+
+class ArrayLocation : public IndexedLocation {
+    const StorageLocation* lastIndexField;  // accessed by lastIndex
+ public:
+    ArrayLocation(const IR::Type* type, cstring name) :
+            IndexedLocation(type, name), lastIndexField(nullptr) {}
+    void setLastIndexField(const StorageLocation* location)
+    { lastIndexField = location; }
+    const StorageLocation* getLastIndexField() const
+    { return lastIndexField; }
     void dbprint(std::ostream& out) const override {
         for (unsigned i = 0; i < elements.size(); i++)
             out << *elements.at(i) << " ";
     }
-    void addElement(unsigned index, LocationSet* result) const;
     void addValidBits(LocationSet* result) const override;
     void removeHeaders(LocationSet*) const override {}  // no results added
     void addLastIndexField(LocationSet* result) const override;
 };
 
 class StorageFactory {
-    TypeMap* typeMap;
  public:
-    explicit StorageFactory(TypeMap* typeMap) : typeMap(typeMap)
-    { CHECK_NULL(typeMap); }
     StorageLocation* create(const IR::Type* type, cstring name) const;
 
     static const cstring validFieldName;
@@ -157,11 +185,11 @@ class StorageFactory {
 /// A set of locations that may be read or written by a computation.
 /// In general this is a conservative approximation of the actual location set.
 class LocationSet : public IHasDbPrint {
-    std::set<const StorageLocation*> locations;
+    ordered_set<const StorageLocation*> locations;
 
  public:
     LocationSet() = default;
-    explicit LocationSet(const std::set<const StorageLocation*> &other) : locations(other) {}
+    explicit LocationSet(const ordered_set<const StorageLocation*> &other) : locations(other) {}
     explicit LocationSet(const StorageLocation* location)
     { CHECK_NULL(location); locations.emplace(location); }
     static const LocationSet* empty;
@@ -179,9 +207,9 @@ class LocationSet : public IHasDbPrint {
     /// e.g., a StructLocation is expanded in all its fields.
     const LocationSet* canonicalize() const;
     void addCanonical(const StorageLocation* location);
-    std::set<const StorageLocation*>::const_iterator begin() const { return locations.cbegin(); }
-    std::set<const StorageLocation*>::const_iterator end()   const { return locations.cend(); }
-    virtual void dbprint(std::ostream& out) const {
+    ordered_set<const StorageLocation*>::const_iterator begin() const { return locations.cbegin(); }
+    ordered_set<const StorageLocation*>::const_iterator end()   const { return locations.cend(); }
+    void dbprint(std::ostream& out) const override {
         if (locations.empty())
             out << "LocationSet::empty";
         for (auto l : locations) {
@@ -195,11 +223,9 @@ class LocationSet : public IHasDbPrint {
 };
 
 /// Maps a declaration to its associated storage.
-class StorageMap {
+class StorageMap : public IHasDbPrint {
     /// Storage location for each declaration.
-    std::map<const IR::IDeclaration*, StorageLocation*> storage;
-    /// Storage location for the return value in the current function
-    StorageLocation* retVal;
+    ordered_map<const IR::IDeclaration*, StorageLocation*> storage;
     StorageFactory factory;
 
  public:
@@ -207,25 +233,15 @@ class StorageMap {
     TypeMap*       typeMap;
 
     StorageMap(ReferenceMap* refMap, TypeMap* typeMap) :
-            retVal(nullptr), factory(typeMap), refMap(refMap), typeMap(typeMap)
+            refMap(refMap), typeMap(typeMap)
     { CHECK_NULL(refMap); CHECK_NULL(typeMap); }
     StorageLocation* add(const IR::IDeclaration* decl) {
         CHECK_NULL(decl);
         auto type = typeMap->getType(decl->getNode(), true);
-        auto loc = factory.create(type, decl->getName());
+        auto loc = factory.create(type, decl->getName() + "/" + decl->externalName());
         if (loc != nullptr)
             storage.emplace(decl, loc);
         return loc;
-    }
-    /// Creates a storage location representing the returned
-    /// value from a function.  The actual type does not really matter,
-    /// since this value is always returned entirely.
-    StorageLocation* addRetVal() {
-        return retVal = factory.create(IR::Type::Boolean::get(), "$retval");
-    }
-    const BaseLocation* getRetVal() const {
-        CHECK_NULL(retVal);
-        return retVal->to<BaseLocation>();
     }
     StorageLocation* getOrAdd(const IR::IDeclaration* decl) {
         auto s = getStorage(decl);
@@ -238,24 +254,35 @@ class StorageMap {
         auto result = ::get(storage, decl);
         return result;
     }
+    void dbprint(std::ostream& out) const override {
+        for (auto &it : storage)
+            out << it.first << ": " << it.second << IndentCtl::endl;
+    }
 };
 
 /// Indicates a statement in the program.
 class ProgramPoint : public IHasDbPrint {
     /// The stack is for representing calls for context-sensitive analyses: i.e.,
     /// table.apply() -> table -> action.
-    /// The empty stack represents "beforeStart" (see below).
+    /// An empty stack represents "beforeStart"
+    /// A nullptr on the stack represents a node *after* the termination of
+    /// the previous context.  E.g., a stack [Function] is the context before
+    /// the function, while [Function, nullptr] is the context after the
+    /// function terminates.
     std::vector<const IR::Node*> stack;
 
  public:
     ProgramPoint() = default;
     ProgramPoint(const ProgramPoint& other) : stack(other.stack) {}
-    explicit ProgramPoint(const IR::Node* node) { stack.push_back(node); }
+    explicit ProgramPoint(const IR::Node* node) { CHECK_NULL(node); stack.push_back(node); }
     ProgramPoint(const ProgramPoint& context, const IR::Node* node);
-    static ProgramPoint beforeStart;  /// A point logically before the program start.
+    /// A point logically before the function/control/action start.
+    static ProgramPoint beforeStart;
+    /// We use a nullptr to indicate a point *after* the previous context
+    ProgramPoint after() { return ProgramPoint(*this, nullptr); }
     bool operator==(const ProgramPoint& other) const;
     std::size_t hash() const;
-    void dbprint(std::ostream& out) const {
+    void dbprint(std::ostream& out) const override {
         if (isBeforeStart()) {
             out << "<BeforeStart>";
         } else {
@@ -263,12 +290,16 @@ class ProgramPoint : public IHasDbPrint {
             for (auto n : stack) {
                 if (!first)
                     out << "//";
-                out << dbp(n);
+                if (!n)
+                    out << "After end";
+                else
+                    out << dbp(n);
                 first = false;
             }
             auto l = stack.back();
-            if (l->is<IR::AssignmentStatement>() ||
-                l->is<IR::MethodCallStatement>())
+            if (l != nullptr &&
+                (l->is<IR::AssignmentStatement>() ||
+                 l->is<IR::MethodCallStatement>()))
                 out << "[[" << l << "]]";
         }
     }
@@ -276,6 +307,10 @@ class ProgramPoint : public IHasDbPrint {
     { return stack.empty() ? nullptr : stack.back(); }
     bool isBeforeStart() const
     { return stack.empty(); }
+    std::vector<const IR::Node*>::const_iterator begin() const { return stack.begin(); }
+    std::vector<const IR::Node*>::const_iterator end() const { return stack.end(); }
+    ProgramPoint &operator=(const ProgramPoint &) = default;
+    ProgramPoint &operator=(ProgramPoint &&) = default;
 };
 }  // namespace P4
 
@@ -301,7 +336,7 @@ class ProgramPoints : public IHasDbPrint {
     void add(ProgramPoint point) { points.emplace(point); }
     const ProgramPoints* merge(const ProgramPoints* with) const;
     bool operator==(const ProgramPoints& other) const;
-    void dbprint(std::ostream& out) const {
+    void dbprint(std::ostream& out) const override {
         out << "{";
         for (auto p : points)
             out << p << " ";
@@ -320,11 +355,14 @@ class ProgramPoints : public IHasDbPrint {
 class Definitions : public IHasDbPrint {
     /// Set of program points that have written last to each location
     /// (conservative approximation).
-    std::map<const BaseLocation*, const ProgramPoints*> definitions;
+    ordered_map<const BaseLocation*, const ProgramPoints*> definitions;
+    /// If true the current program point is actually unreachable.
+    bool unreachable;
 
  public:
     Definitions() = default;
-    Definitions(const Definitions& other) : definitions(other.definitions) {}
+    Definitions(const Definitions& other) :
+            definitions(other.definitions), unreachable(other.unreachable) {}
     Definitions* joinDefinitions(const Definitions* other) const;
     /// Point writes the specified LocationSet.
     Definitions* writes(ProgramPoint point, const LocationSet* locations) const;
@@ -332,21 +370,26 @@ class Definitions : public IHasDbPrint {
     { CHECK_NULL(loc); CHECK_NULL(point); definitions[loc] = point; }
     void setDefinition(const StorageLocation* loc, const ProgramPoints* point);
     void setDefinition(const LocationSet* loc, const ProgramPoints* point);
+    Definitions* setUnreachable() { unreachable = true; return this; }
+    bool isUnreachable() const { return unreachable; }
     bool hasLocation(const BaseLocation* location) const
     { return definitions.find(location) != definitions.end(); }
     const ProgramPoints* getPoints(const BaseLocation* location) const {
         auto r = ::get(definitions, location);
-        BUG_CHECK(r != nullptr, "%1%: no definitions", location);
+        BUG_CHECK(r != nullptr, "no definitions found for %1%", location);
         return r; }
     const ProgramPoints* getPoints(const LocationSet* locations) const;
     bool operator==(const Definitions& other) const;
-    void dbprint(std::ostream& out) const {
+    void dbprint(std::ostream& out) const override {
+        if (unreachable) {
+            out << "  Unreachable" << IndentCtl::endl;
+        }
         if (definitions.empty())
             out << "  Empty definitions";
         bool first = true;
         for (auto d : definitions) {
             if (!first)
-                out << std::endl;
+                out << IndentCtl::endl;
             out << "  " << *d.first << "=>" << *d.second;
             first = false;
         }
@@ -358,8 +401,9 @@ class Definitions : public IHasDbPrint {
 
 class AllDefinitions : public IHasDbPrint {
     /// These are the definitions available AFTER each ProgramPoint.
-    /// However, for ProgramPoints representing P4Control, P4Action, and P4Table
-    /// the definitions are BEFORE the ProgramPoint.
+    /// However, for ProgramPoints representing P4Control, P4Action,
+    /// P4Table, P4Function -- the definitions are BEFORE the
+    /// ProgramPoint.
     std::unordered_map<ProgramPoint, Definitions*> atPoint;
 
  public:
@@ -371,18 +415,27 @@ class AllDefinitions : public IHasDbPrint {
         if (it == atPoint.end()) {
             if (emptyIfNotFound) {
                 auto defs = new Definitions();
-                setDefinitionsAt(point, defs);
+                setDefinitionsAt(point, defs, false);
                 return defs;
             }
             BUG("Unknown point %1% for definitions", &point);
         }
         return it->second;
     }
-    void setDefinitionsAt(ProgramPoint point, Definitions* defs)
-    { atPoint[point] = defs; }
-    void dbprint(std::ostream& out) const {
+    void setDefinitionsAt(ProgramPoint point, Definitions* defs, bool overwrite) {
+        if (!overwrite) {
+            auto it = atPoint.find(point);
+            if (it != atPoint.end()) {
+                LOG2("Overwriting definitions at " << point << ": " <<
+                     it->second << " with " << defs);
+                BUG_CHECK(false, "Overwriting definitions");
+            }
+        }
+        atPoint[point] = defs;
+    }
+    void dbprint(std::ostream& out) const override {
         for (auto e : atPoint)
-            out << e.first << " => " << e.second << std::endl;
+            out << e.first << " => " << e.second << IndentCtl::endl;
     }
 };
 
@@ -396,7 +449,8 @@ class AllDefinitions : public IHasDbPrint {
  * @pre Must be executed after variable initializers have been removed.
  *
  */
-class ComputeWriteSet : public Inspector {
+
+class ComputeWriteSet : public Inspector, public IHasDbPrint {
  protected:
     AllDefinitions*     allDefinitions;  /// Result computed by this pass.
     Definitions*        currentDefinitions;  /// Before statement currently processed.
@@ -407,23 +461,26 @@ class ComputeWriteSet : public Inspector {
     /// if true we are processing an expression on the lhs of an assignment
     bool                lhs;
     /// For each expression the location set it writes
-    std::map<const IR::Expression*, const LocationSet*> writes;
+    ordered_map<const IR::Expression*, const LocationSet*> writes;
+    bool                virtualMethod;  /// True if we are analyzing a virtual method
 
     /// Creates new visitor, but with same underlying data structures.
     /// Needed to visit some program fragments repeatedly.
     ComputeWriteSet(const ComputeWriteSet* source, ProgramPoint context, Definitions* definitions) :
             allDefinitions(source->allDefinitions), currentDefinitions(definitions),
             returnedDefinitions(nullptr), exitDefinitions(source->exitDefinitions),
-            callingContext(context), storageMap(source->storageMap), lhs(false) {
-        setName("ComputeWriteSet");
+            callingContext(context), storageMap(source->storageMap), lhs(false),
+            virtualMethod(false) {
+        visitDagOnce = false;
     }
+    void visitVirtualMethods(const IR::IndexedVector<IR::Declaration> &locals);
     void enterScope(const IR::ParameterList* parameters,
                     const IR::IndexedVector<IR::Declaration>* locals,
                     ProgramPoint startPoint, bool clear = true);
     void exitScope(const IR::ParameterList* parameters,
                    const IR::IndexedVector<IR::Declaration>* locals);
     Definitions* getDefinitionsAfter(const IR::ParserState* state);
-    bool setDefinitions(Definitions* defs, const IR::Node* who = nullptr);
+    bool setDefinitions(Definitions* defs, const IR::Node* who = nullptr, bool overwrite = false);
     ProgramPoint getProgramPoint(const IR::Node* node = nullptr) const;
     const LocationSet* getWrites(const IR::Expression* expression) const {
         auto result = ::get(writes, expression);
@@ -434,13 +491,19 @@ class ComputeWriteSet : public Inspector {
         CHECK_NULL(expression); CHECK_NULL(loc);
         writes.emplace(expression, loc);
     }
+    void dbprint(std::ostream& out) const override {
+        if (writes.empty())
+            out << "No writes";
+        for (auto &it : writes)
+            out << it.first << " writes " << it.second << IndentCtl::endl;
+    }
 
  public:
     explicit ComputeWriteSet(AllDefinitions* allDefinitions) :
             allDefinitions(allDefinitions), currentDefinitions(nullptr),
-            returnedDefinitions(nullptr), exitDefinitions(nullptr),
-            storageMap(allDefinitions->storageMap), lhs(false)
-    { CHECK_NULL(allDefinitions); setName("ComputeWriteSet"); }
+            returnedDefinitions(nullptr), exitDefinitions(new Definitions()),
+            storageMap(allDefinitions->storageMap), lhs(false), virtualMethod(false)
+    { CHECK_NULL(allDefinitions); visitDagOnce = false; }
 
     // expressions
     bool preorder(const IR::Literal* expression) override;

@@ -131,12 +131,28 @@ class P4ParserDriver final : public AbstractParserDriver {
         const Util::SourceInfo& srcInfo,
         const IR::Vector<IR::AnnotationToken>& body);
 
+    static const IR::Vector<IR::Expression>* parseConstantList(
+        const Util::SourceInfo& srcInfo,
+        const IR::Vector<IR::AnnotationToken>& body);
+
+    static const IR::Vector<IR::Expression>* parseConstantOrStringLiteralList(
+        const Util::SourceInfo& srcInfo,
+        const IR::Vector<IR::AnnotationToken>& body);
+
+    static const IR::Vector<IR::Expression>* parseStringLiteralList(
+        const Util::SourceInfo& srcInfo,
+        const IR::Vector<IR::AnnotationToken>& body);
+
     // Singletons ////////////////////////////////////////////////////////////
     static const IR::Expression* parseExpression(
         const Util::SourceInfo& srcInfo,
         const IR::Vector<IR::AnnotationToken>& body);
 
     static const IR::Constant* parseConstant(
+        const Util::SourceInfo& srcInfo,
+        const IR::Vector<IR::AnnotationToken>& body);
+
+    static const IR::Expression* parseConstantOrStringLiteral(
         const Util::SourceInfo& srcInfo,
         const IR::Vector<IR::AnnotationToken>& body);
 
@@ -170,27 +186,17 @@ class P4ParserDriver final : public AbstractParserDriver {
         const Util::SourceInfo& srcInfo,
         const IR::Vector<IR::AnnotationToken>& body);
 
+    // P4Runtime Annotations /////////////////////////////////////////////////
+    static const IR::Vector<IR::Expression>* parseP4rtTranslationAnnotation(
+        const Util::SourceInfo& srcInfo,
+        const IR::Vector<IR::AnnotationToken>& body);
+
  protected:
     friend class P4::P4Lexer;
     friend class P4::P4Parser;
 
     /// Notify that the parser parsed a P4 `error` declaration.
     void onReadErrorDeclaration(IR::Type_Error* error);
-
-    /**
-     * There's a lexical ambiguity in P4 between the right shift operator `>>`
-     * and nested template arguments. (e.g. `A<B<C>>`) We resolve this at the
-     * parser level; from the lexer's perspective, both cases are just a
-     * sequence of R_ANGLE tokens. Whitespace is allowed between the R_ANGLEs of
-     * nested template arguments, but in the right shift operator case that
-     * isn't permitted, and the parser calls this function to detect when that
-     * happens and report and error.
-     *
-     * @param l  The location of the first R_ANGLE token.
-     * @param r  The location of the second R_ANGLE token.
-     */
-    static void checkShift(const Util::SourceInfo& l, const Util::SourceInfo& r);
-
 
     ////////////////////////////////////////////////////////////////////////////
     // Shared state manipulated directly by the lexer and parser.
@@ -206,6 +212,10 @@ class P4ParserDriver final : public AbstractParserDriver {
     /// A scratch buffer to hold the current string literal. (They're lexed
     /// incrementally, so we need to hold some state between tokens.)
     std::string stringLiteral;
+
+    // flag to track when template args are expected, to adjust the precedence
+    // of '<'
+    bool template_args = false;
 
  private:
     P4ParserDriver();

@@ -31,11 +31,13 @@ bool CheckNamedArgs::checkArguments(const IR::Vector<IR::Argument>* arguments) {
             first = false;
         } else {
             if (argHasName != hasName)
-                ::error("%1%: all or none of the arguments of a call must be named", arg);
+                ::error(ErrorType::ERR_INVALID,
+                        "%1%: either all or none of the arguments of a call must be named", arg);
             if (argHasName) {
                 auto it = found.find(argName);
                 if (it != found.end())
-                    ::error("%1% and %2%: same argument name", it->second, arg);
+                    ::error(ErrorType::ERR_DUPLICATE,
+                            "%1% and %2%: same argument name", it->second, arg);
             }
         }
         if (argHasName)
@@ -47,9 +49,11 @@ bool CheckNamedArgs::checkArguments(const IR::Vector<IR::Argument>* arguments) {
 bool CheckNamedArgs::preorder(const IR::Parameter* parameter) {
     if (parameter->defaultValue != nullptr) {
         if (parameter->isOptional())
-            ::error("%1%: optional parameters cannot have default values", parameter);
+            ::error(ErrorType::ERR_INVALID,
+                    "%1%: optional parameters cannot have default values", parameter);
         if (parameter->hasOut())
-            ::error("%1%: out parameters cannot have default values", parameter);
+            ::error(ErrorType::ERR_INVALID,
+                    "%1%: out parameters cannot have default values", parameter);
     }
     return true;
 }

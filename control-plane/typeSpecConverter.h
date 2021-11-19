@@ -18,6 +18,7 @@ limitations under the License.
 #define CONTROL_PLANE_TYPESPECCONVERTER_H_
 
 #include <map>
+#include <string>
 
 #include "p4/config/v1/p4types.pb.h"
 
@@ -42,6 +43,7 @@ namespace ControlPlaneAPI {
 class TypeSpecConverter : public Inspector {
  private:
     const P4::ReferenceMap* refMap;
+    const P4::TypeMap* typeMap;
     /// type_info field of the P4Info message: includes information about P4
     /// named types (struct, header, header union, enum, error).
     ::p4::config::v1::P4TypeInfo* p4RtTypeInfo;
@@ -50,6 +52,7 @@ class TypeSpecConverter : public Inspector {
     std::map<const IR::Type*, ::p4::config::v1::P4DataTypeSpec*> map;
 
     TypeSpecConverter(const P4::ReferenceMap* refMap,
+                      const P4::TypeMap* typeMap,
                       ::p4::config::v1::P4TypeInfo* p4RtTypeInfo);
 
     // fallback for unsupported types, should be unreachable
@@ -59,10 +62,11 @@ class TypeSpecConverter : public Inspector {
     bool preorder(const IR::Type_Bits* type) override;
     bool preorder(const IR::Type_Varbits* type) override;
     bool preorder(const IR::Type_Boolean* type) override;
-    bool preorder(const IR::Type_Tuple* type) override;
+    bool preorder(const IR::Type_BaseList* type) override;
     bool preorder(const IR::Type_Stack* type) override;
 
     bool preorder(const IR::Type_Name* type) override;
+    bool preorder(const IR::Type_Newtype* type) override;
 
     // these methods do not update the "map", but update p4RtTypeInfo if it is
     // not null.
@@ -70,6 +74,7 @@ class TypeSpecConverter : public Inspector {
     bool preorder(const IR::Type_Header* type) override;
     bool preorder(const IR::Type_HeaderUnion* type) override;
     bool preorder(const IR::Type_Enum* type) override;
+    bool preorder(const IR::Type_SerEnum* type) override;
     bool preorder(const IR::Type_Error* type) override;
 
  public:
@@ -77,9 +82,32 @@ class TypeSpecConverter : public Inspector {
     /// @typeInfo is nullptr, then the relevant information is not generated for
     /// named types.
     static const ::p4::config::v1::P4DataTypeSpec* convert(
-        const P4::ReferenceMap* refMap,
+        const P4::ReferenceMap* refMap, const P4::TypeMap* typeMap,
         const IR::Type* type, ::p4::config::v1::P4TypeInfo* typeInfo);
 };
+
+/// See section "User-defined types" in P4RT specification.
+struct ControllerType {
+    enum Type { kBit, kString };
+    Type type;  // Supported controller types are `string` and `bit<W>`.
+    int width;  // 0 if type == kString.
+};
+
+/// Payload of @p4runtime_translation annotation.
+struct TranslationAnnotation {
+    std::string original_type_uri;
+    ControllerType controller_type;
+};
+
+/// hasTranslationAnnotation returns true iff the type is annotated by a *valid*
+/// p4runtime_translation annotation, in which case it populates the given
+/// TranslationAnnotation with the values parsed from the annotation.
+bool hasTranslationAnnotation(const IR::Type* type,
+                              TranslationAnnotation* payload);
+
+/// getTypeName returns a cstring for use as type_name for a Type_Newtype. It
+/// returns nullptr if @type is not a Type_Newtype.
+cstring getTypeName(const IR::Type* type, const TypeMap* typeMap);
 
 }  // namespace ControlPlaneAPI
 

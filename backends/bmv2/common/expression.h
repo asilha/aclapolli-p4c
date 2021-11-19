@@ -57,7 +57,11 @@ class ExpressionConverter : public Inspector {
     P4::P4CoreLibrary&   corelib;
     cstring              scalarsName;
 
-    /// after translating an Expression to JSON, save the result to 'map'.
+    /// After translating an Expression to JSON, save the result to 'map'.
+    /// WARNING: this assumes that each IR node has the same
+    /// translation in any context, but this is not true in general.
+    /// For this pass to work correctly, the IR tree must be converted
+    /// from a DAG to a TREE.
     std::map<const IR::Expression*, Util::IJson*> map;
     bool leftValue;  // true if converting a left value
     // in some cases the bmv2 JSON requires a 'bitwidth' attribute for hex
@@ -102,10 +106,12 @@ class ExpressionConverter : public Inspector {
                          bool wrap = true, bool convertBool = false);
     Util::IJson* convertLeftValue(const IR::Expression* e);
     Util::IJson* convertWithConstantWidths(const IR::Expression* e);
+    bool isArrayIndexRuntime(const IR::Expression* e);
 
     void postorder(const IR::BoolLiteral* expression) override;
     void postorder(const IR::MethodCallExpression* expression) override;
     void postorder(const IR::Cast* expression) override;
+    void postorder(const IR::Slice* expression) override;
     void postorder(const IR::AddSat* expression) override { saturated_binary(expression); }
     void postorder(const IR::SubSat* expression) override { saturated_binary(expression); }
     void postorder(const IR::Constant* expression) override;
@@ -115,9 +121,10 @@ class ExpressionConverter : public Inspector {
     void postorder(const IR::IntMod* expression) override;
     void postorder(const IR::Operation_Binary* expression) override;
     void postorder(const IR::ListExpression* expression) override;
-    void postorder(const IR::StructInitializerExpression* expression) override;
+    void postorder(const IR::StructExpression* expression) override;
     void postorder(const IR::Operation_Unary* expression) override;
     void postorder(const IR::PathExpression* expression) override;
+    void postorder(const IR::StringLiteral* expression) override;
     void postorder(const IR::TypeNameExpression* expression) override;
     void postorder(const IR::Expression* expression) override;
     void mapExpression(const IR::Expression* expression, Util::IJson* json);

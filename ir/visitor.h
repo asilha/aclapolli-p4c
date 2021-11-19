@@ -23,19 +23,22 @@ limitations under the License.
 #include "ir/ir.h"
 #include "lib/exceptions.h"
 
+// declare this outside of Visitor so it can be forward declared in node.h
+struct Visitor_Context {
+    // We maintain a linked list of Context structures on the stack
+    // in the Visitor::apply_visitor functions as we do the recursive
+    // descent traversal.  pre/postorder function can access this
+    // context via getContext/findContext
+    const Visitor_Context       *parent;
+    const IR::Node              *node, *original;
+    mutable int                 child_index;
+    mutable const char          *child_name;
+    int                         depth;
+};
+
 class Visitor {
  public:
-    struct Context {
-        // We maintain a linked list of Context structures on the stack
-        // in the Visitor::apply_visitor functions as we do the recursive
-        // descent traversal.  pre/postorder function can access this
-        // context via getContext/findContext
-        const Context   *parent;
-        const IR::Node  *node, *original;
-        mutable int     child_index;
-        mutable const char *child_name;
-        int             depth;
-    };
+    typedef Visitor_Context Context;
     class profile_t {
         // for profiling -- a profile_t object is created when a pass
         // starts and destroyed when it ends.  Moveable but not copyable.
@@ -54,13 +57,18 @@ class Visitor {
     virtual ~Visitor() = default;
 
     mutable cstring internalName;
+    // Some visitors are created and applied by other visitors.
+    // This field keeps track of the caller.
+    const Visitor* called_by = nullptr;
 
+    const Visitor& setCalledBy(const Visitor* visitor) { called_by = visitor; return *this; }
     // init_apply is called (once) when apply is called on an IR tree
     // it expects to allocate a profile record which will be destroyed
     // when the traversal completes.  Visitor subclasses may extend this
     // to do any additional initialization they need.  They should call their
     // parent's init_apply to do further initialization
     virtual profile_t init_apply(const IR::Node *root);
+    profile_t init_apply(const IR::Node *root, const Context *parent_context);
     // End_apply is called symmetrically with init_apply, after the visit
     // is completed.  Both functions will be called in the event of a normal
     // completion, but only the 0-argument version will be called in the event
@@ -125,14 +133,22 @@ class Visitor {
             ctxt->child_index = cidx; }
         v.parallel_visit_children(*this); }
 
+    virtual Visitor *clone() const { BUG("need %s::clone method",  name()); return nullptr; }
+    virtual bool check_clone(const Visitor *a) { return typeid(*this) == typeid(*a); }
+
     // Functions for IR visit_children to call for ControlFlowVisitors.
     virtual Visitor &flow_clone() { return *this; }
-    virtual void flow_dead() { }
 
     /** Merge the given visitor into this visitor at a joint point in the
      * control flow graph.  Should update @this and leave the other unchanged.
      */
     virtual void flow_merge(Visitor &) { }
+    /** Support methods for non-local ControlFlow computations */
+    virtual void flow_merge_global_to(cstring) { }
+    virtual void flow_merge_global_from(cstring) { }
+    virtual void erase_global(cstring) { }
+    virtual bool check_global(cstring) { return false; }
+    virtual void clear_globals() { }
 
     static cstring demangle(const char *);
     virtual const char *name() const {
@@ -179,6 +195,10 @@ class Visitor {
     template <class T> inline const T *findOrigCtxt() const {
         const Context *c = ctxt;
         return findOrigCtxt<T>(c); }
+    inline bool isInContext(const IR::Node *n) const {
+        for (auto *c = ctxt; c; c = c->parent) {
+            if (c->node == n || c->original == n) return true; }
+        return false; }
 
     /// @return the current node - i.e., the node that was passed to preorder()
     /// or postorder(). For Modifiers and Transforms, this is a clone of the
@@ -187,6 +207,34 @@ class Visitor {
     template <class T>
     const T* getCurrentNode() const {
         return ctxt->node ? ctxt->node->to<T>() : nullptr; }
+
+    /// True if the warning with this kind is enabled at this point.
+    /// Warnings can be disabled by using the @noWarn("unused") annotation
+    /// in an enclosing environment.
+    bool warning_enabled(int warning_kind) const {
+        return warning_enabled(this, warning_kind);
+    }
+    /// Static version of the above function, which can be called
+    /// even if not directly in a visitor
+    static bool warning_enabled(const Visitor* visitor, int warning_kind);
+    template<class T,
+             typename = typename std::enable_if<
+                 std::is_base_of<Util::IHasSourceInfo, T>::value>::type,
+             class... Args>
+    void warn(const int kind, const char *format, const T *node, Args... args) {
+        if (warning_enabled(kind))
+            ::warning(kind, format, node, std::forward<Args>(args)...);
+    }
+
+    /// The const ref variant of the above
+    template<class T,
+             typename = typename std::enable_if<
+                 std::is_base_of<Util::IHasSourceInfo, T>::value>::type,
+             class... Args>
+    void warn(const int kind, const char *format, const T &node, Args... args) {
+        if (warning_enabled(kind))
+            ::warning(kind, format, node, std::forward<Args>(args)...);
+    }
 
  protected:
     // if visitDagOnce is set to 'false' (usually in the derived Visitor
@@ -226,7 +274,6 @@ class Visitor {
 
     void visit_children(const IR::Node *, std::function<void()> fn) { fn(); }
     class ChangeTracker;  // used by Modifier and Transform -- private to them
-    virtual bool check_clone(const Visitor *) { return true; }
     // This overrides visitDagOnce for a single node -- can only be called from
     // preorder and postorder functions
     void visitOnce() const { *visitCurrentOnce = true; }
@@ -311,9 +358,11 @@ class Transform : public virtual Visitor {
 };
 
 class ControlFlowVisitor : public virtual Visitor {
-    std::map<const IR::Node *, std::pair<ControlFlowVisitor *, int>> *flow_join_points = 0;
+    std::map<cstring, ControlFlowVisitor &>     &globals;
+
  protected:
-    virtual ControlFlowVisitor *clone() const = 0;
+    ControlFlowVisitor* clone() const override = 0;
+    std::map<const IR::Node *, std::pair<ControlFlowVisitor *, int>> *flow_join_points = 0;
     void init_join_flows(const IR::Node *root) override;
     bool join_flows(const IR::Node *n) override;
 
@@ -324,6 +373,30 @@ class ControlFlowVisitor : public virtual Visitor {
      */
     virtual bool filter_join_point(const IR::Node *) { return false; }
     ControlFlowVisitor &flow_clone() override;
+    ControlFlowVisitor() : globals(*new std::map<cstring, ControlFlowVisitor &>) {}
+
+ public:
+    void flow_merge_global_to(cstring key) override {
+        if (globals.count(key))
+            globals.at(key).flow_merge(*this);
+        else
+            globals.emplace(key, flow_clone()); }
+    void flow_merge_global_from(cstring key) override {
+        if (globals.count(key)) flow_merge(globals.at(key)); }
+    void erase_global(cstring key) override { globals.erase(key); }
+    bool check_global(cstring key) override { return globals.count(key) != 0; }
+    void clear_globals() override { globals.clear(); }
+
+    /// RAII class to ensure global key is only used in one place
+    class GuardGlobal {
+        Visitor &self;
+        cstring key;
+
+     public:
+        GuardGlobal(Visitor &self, cstring key) : self(self), key(key) {
+            BUG_CHECK(!self.check_global(key), "ControlFlowVisitor global %s in use", key); }
+        ~GuardGlobal() { self.erase_global(key); }
+    };
 };
 
 class Backtrack : public virtual Visitor {

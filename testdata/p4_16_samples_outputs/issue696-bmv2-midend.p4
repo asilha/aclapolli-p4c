@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 typedef bit<48> EthernetAddress;
@@ -59,37 +60,26 @@ parser P(packet_in b, out Headers p, inout Metadata meta, inout standard_metadat
 }
 
 control Ing(inout Headers headers, inout Metadata meta, inout standard_metadata_t standard_meta) {
-    @hidden action act() {
+    @hidden action issue696bmv2l76() {
         standard_meta.egress_spec = 9w1;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue696bmv2l76 {
         actions = {
-            act();
+            issue696bmv2l76();
         }
-        const default_action = act();
+        const default_action = issue696bmv2l76();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue696bmv2l76.apply();
     }
 }
 
 control Eg(inout Headers hdrs, inout Metadata meta, inout standard_metadata_t standard_meta) {
-    Value val_0;
-    bit<32> inc_0;
-    bit<32> tmp;
-    bit<32> tmp_0;
     @name("Eg.test") action test() {
-        val_0.field1 = 32w0;
-        tmp = tmp;
-        tmp = 32w0;
-        inc_0 = tmp;
-        tmp_0 = tmp_0;
-        tmp_0 = 32w0;
-        debug.write(32w0, tmp_0);
-        debug.write(32w1, inc_0);
-        val_0.field1 = 32w1;
-        debug.write(32w2, inc_0);
-        reg.write(32w0, val_0.field1);
+        debug.write(32w0, 32w0);
+        debug.write(32w1, 32w0);
+        debug.write(32w2, 32w0);
+        reg.write(32w0, 32w1);
     }
     @hidden table tbl_test {
         actions = {

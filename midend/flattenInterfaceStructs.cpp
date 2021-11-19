@@ -41,7 +41,7 @@ StructTypeReplacement::StructTypeReplacement(
     replacementType = new IR::Type_Struct(type->name, IR::Annotations::empty, *vec);
 }
 
-const IR::StructInitializerExpression* StructTypeReplacement::explode(
+const IR::StructExpression* StructTypeReplacement::explode(
     const IR::Expression *root, cstring prefix) {
     auto vec = new IR::IndexedVector<IR::NamedExpression>();
     auto fieldType = ::get(structFieldMap, prefix);
@@ -57,9 +57,12 @@ const IR::StructInitializerExpression* StructTypeReplacement::explode(
         }
         vec->push_back(new IR::NamedExpression(f->name, expr));
     }
-    return new IR::StructInitializerExpression(fieldType->name, *vec, false);
+    auto type = fieldType->getP4Type()->to<IR::Type_Name>();
+    return new IR::StructExpression(
+        root->srcInfo, type, type, *vec);
 }
 
+namespace {
 static const IR::Type_Struct* isNestedStruct(const P4::TypeMap* typeMap, const IR::Type* type) {
     if (auto st = type->to<IR::Type_Struct>()) {
         for (auto f : st->fields) {
@@ -70,6 +73,7 @@ static const IR::Type_Struct* isNestedStruct(const P4::TypeMap* typeMap, const I
     }
     return nullptr;
 }
+}  // namespace
 
 void NestedStructMap::createReplacement(const IR::Type_Struct* type) {
     auto repl = ::get(replacement, type);
@@ -142,6 +146,11 @@ const IR::Node* ReplaceStructs::postorder(IR::Member* expression) {
         if (getParent<IR::Member>() != nullptr)
             // We only want to process the outermost Member
             return expression;
+        if (isWrite()) {
+            ::error(ErrorType::ERR_UNSUPPORTED,
+                    "%1%: writing to a structure is not supported on this target", expression);
+            return expression;
+        }
         // Prefix is a reference to a field of the original struct whose
         // type is actually a struct itself.  We need to replace the field
         // with a struct initializer expression.  (This won't work if the

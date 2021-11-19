@@ -17,6 +17,11 @@ limitations under the License.
 #ifndef _FRONTENDS_P4_COMMONINLINING_H_
 #define _FRONTENDS_P4_COMMONINLINING_H_
 
+#define DEBUG_INLINER 0
+
+#if DEBUG_INLINER
+#include "frontends/p4/toP4/toP4.h"
+#endif
 #include "frontends/p4/callGraph.h"
 #include "ir/ir.h"
 
@@ -157,7 +162,7 @@ class AbstractInliner : public Transform {
 };
 
 template <class InlineList, class InlineWorkList>
-class InlineDriver : public Transform {
+class InlineDriver : public Visitor {
     InlineList*     toInline;
     AbstractInliner<InlineList, InlineWorkList>* inliner;
 
@@ -166,30 +171,25 @@ class InlineDriver : public Transform {
         InlineList* toInline, AbstractInliner<InlineList, InlineWorkList> *inliner) :
             toInline(toInline), inliner(inliner)
     { CHECK_NULL(toInline); CHECK_NULL(inliner); setName("InlineDriver"); }
-    // Not really a visitor, but we want to embed it into a PassManager,
-    // so we make it look like a visitor.
-    const IR::Node* preorder(IR::P4Program* program) override {
+    const IR::Node* apply_visitor(const IR::Node *program, const char * = 0) override {
         LOG2("InlineDriver");
-        const IR::P4Program* prog = program;
         toInline->analyze();
         LOG3("InlineList size " << toInline->size());
         while (auto todo = toInline->next()) {
             LOG2("Processing " << todo);
             inliner->prepare(toInline, todo);
-            prog = prog->apply(*inliner);
+            program = program->apply(*inliner);
             if (::errorCount() > 0)
                 break;
 
-#if 0
+#if DEBUG_INLINER
             // debugging code; we don't have an easy way to dump the program here,
             // since we are not between passes
             ToP4 top4(&std::cout, false, nullptr);
-            prog->apply(top4);
+            program->apply(top4);
 #endif
         }
-
-        prune();
-        return prog;
+        return program;
     }
 };
 

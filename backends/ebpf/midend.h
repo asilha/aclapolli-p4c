@@ -25,13 +25,16 @@ limitations under the License.
 namespace EBPF {
 
 class MidEnd {
-    std::vector<DebugHook> hooks;
  public:
+    std::vector<DebugHook> hooks;
     P4::ReferenceMap       refMap;
     P4::TypeMap            typeMap;
 
     void addDebugHook(DebugHook hook) { hooks.push_back(hook); }
-    const IR::ToplevelBlock* run(EbpfOptions& options, const IR::P4Program* program);
+    // If p4c is run with option '--listMidendPasses', outStream is used for printing passes names
+    const IR::ToplevelBlock* run(EbpfOptions& options,
+                                 const IR::P4Program* program,
+                                 std::ostream* outStream = nullptr);
 };
 
 }  // namespace EBPF

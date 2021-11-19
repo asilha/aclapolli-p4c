@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # Copyright 2013-present Barefoot Networks, Inc.
 # Copyright 2018 VMware, Inc.
 #
@@ -17,17 +17,18 @@
 """ Defines helper functions for a general testing framework. Used by multiple
     Python testing scripts in the backends folder."""
 
-from __future__ import print_function
 import subprocess
 from subprocess import Popen
 from threading import Timer
+from pathlib import Path
 import sys
 import os
+from scapy.packet import Raw
 
 TIMEOUT = 10 * 60
 SUCCESS = 0
 FAILURE = 1
-SKIPPED = 2  # used occasionally to indicate that a test was not executed
+SKIPPED = 999  # used occasionally to indicate that a test was not executed
 
 
 def is_err(p4filename):
@@ -56,11 +57,6 @@ def report_output(file, verbose, *message):
         out_file.close()
 
 
-def byte_to_hex(byteStr):
-    """ Convert byte sequences to a hex string. """
-    return ''.join(["%02X " % ord(x) for x in byteStr]).strip()
-
-
 def hex_to_byte(hexStr):
     """ Convert hex strings to bytes. """
     bytes = []
@@ -73,7 +69,7 @@ def hex_to_byte(hexStr):
 def compare_pkt(outputs, expected, received):
     """  Compare two given byte sequences and check if they are the same.
          Report errors if this is not the case. """
-    received = ''.join(byte_to_hex(str(received)).split()).upper()
+    received = bytes(received).hex().upper()
     expected = ''.join(expected.split()).upper()
     if len(received) < len(expected):
         report_err(outputs["stderr"], "Received packet too short",
@@ -97,13 +93,13 @@ def open_process(verbose, args, outputs):
     report_output(outputs["stdout"],
                   verbose, "Writing", args)
     proc = None
-    if outputs["stderr"] is not None:
-        try:
-            proc = Popen(args, stdout=subprocess.PIPE, shell=True,
-                         stdin=subprocess.PIPE, stderr=subprocess.PIPE,
-                         universal_newlines=True)
-        except OSError as e:
-            report_err(outputs["stderr"], "Failed executing: ", e)
+
+    try:
+        proc = Popen(args, stdout=subprocess.PIPE, shell=True,
+                stdin=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True)
+    except OSError as e:
+       report_err(outputs["stderr"], "Failed executing: ", e)
     if proc is None:
         # Never even started
         report_err(outputs["stderr"], "Process failed to start")
@@ -146,3 +142,35 @@ def check_root():
     """ This function returns False if the user does not have root privileges.
         Caution: Only works on Unix systems """
     return (os.getuid() == 0)
+
+
+class PathError(RuntimeError):
+    pass
+
+def check_if_file(input_path):
+    """Checks if a path is a file and converts the input
+        to an absolute path"""
+    input_path = Path(input_path)
+    if not input_path.exists():
+        msg = "{0} does not exist".format(input_path)
+        report_err(sys.stderr, msg)
+        sys.exit(1)
+    if not input_path.is_file():
+        msg = "{0} is not a file".format(input_path)
+        report_err(sys.stderr, msg)
+        sys.exit(1)
+    return str(input_path.absolute())
+
+def check_if_dir(input_path):
+    """Checks if a path is an actual directory and converts the input
+        to an absolute path"""
+    input_path = Path(input_path)
+    if not input_path.exists():
+        msg = "{0} does not exist".format(input_path)
+        report_err(sys.stderr, msg)
+        sys.exit(1)
+    if not input_path.is_dir():
+        msg = "{0} is not a directory".format(input_path)
+        report_err(sys.stderr, msg)
+        sys.exit(1)
+    return str(input_path.absolute())

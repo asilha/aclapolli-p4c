@@ -14,29 +14,33 @@ header_union U {
 control ct(out bit<32> b);
 package top(ct _ct);
 control c(out bit<32> x) {
-    U u_0;
-    U[2] u2_0;
-    @hidden action act() {
-        u_0.isValid();
-        u_0.h1.isValid();
+    @name("c.u") U u_0;
+    @name("c.u2") U[2] u2_0;
+    @hidden action issue561l29() {
+        u_0.h1.setInvalid();
+        u_0.h2.setInvalid();
+        u2_0[0].h1.setInvalid();
+        u2_0[0].h2.setInvalid();
+        u2_0[1].h1.setInvalid();
+        u2_0[1].h2.setInvalid();
         x = u_0.h1.f + u_0.h2.g;
         u_0.h1.setValid();
         u_0.h1.f = 32w0;
-        x = x + 32w0;
+        x = x;
         u_0.h2.g = 32w0;
-        x = x + 32w0;
+        x = x;
         u2_0[0].h1.setValid();
         u2_0[0].h1.f = 32w2;
         x = x + u2_0[1].h2.g + 32w2;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_issue561l29 {
         actions = {
-            act();
+            issue561l29();
         }
-        const default_action = act();
+        const default_action = issue561l29();
     }
     apply {
-        tbl_act.apply();
+        tbl_issue561l29.apply();
     }
 }
 

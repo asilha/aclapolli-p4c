@@ -17,9 +17,9 @@ limitations under the License.
 #ifndef CONTROL_PLANE_P4RUNTIMEARCHHANDLER_H_
 #define CONTROL_PLANE_P4RUNTIMEARCHHANDLER_H_
 
-#include <boost/optional.hpp>
-
 #include <set>
+
+#include <boost/optional.hpp>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -32,6 +32,7 @@ limitations under the License.
 #include "frontends/p4/typeMap.h"
 #include "ir/ir.h"
 #include "lib/ordered_set.h"
+#include "typeSpecConverter.h"
 
 namespace P4 {
 
@@ -91,7 +92,7 @@ class P4RuntimeSymbolType {
  private:
     // even if the constructor is protected, the static functions in the derived
     // classes cannot access it, which is why we use the make factory function
-    constexpr P4RuntimeSymbolType(p4rt_id_t id) noexcept
+    explicit constexpr P4RuntimeSymbolType(p4rt_id_t id) noexcept
         : id(id) { }
 
     /// The 8-bit id prefix for that type, as per the p4info.proto file.
@@ -133,6 +134,11 @@ class P4RuntimeSymbolTableIface {
 class P4RuntimeArchHandlerIface {
  public:
     virtual ~P4RuntimeArchHandlerIface() { }
+    /// Get control plane name for @block
+    virtual cstring getControlPlaneName(const IR::Block* block) {
+        auto decl = block->getContainer();
+        return decl ? decl->controlPlaneName() : "";
+    }
     /// Collects architecture-specific properties for @tableBlock in @symbols
     /// table.
     virtual void collectTableProperties(P4RuntimeSymbolTableIface* symbols,
@@ -206,12 +212,12 @@ getExternInstanceFromProperty(const IR::P4Table* table,
 bool isExternPropertyConstructedInPlace(const IR::P4Table* table,
                                         const cstring& propertyName);
 
-/// Visit evaluated blocks under the provided top-level block. Guarantees that
-/// each block is visited only once, even if multiple paths to reach it exist.
+/// Visit evaluated blocks under the provided block. Guarantees that each
+/// block is visited only once, even if multiple paths to reach it exist.
 template <typename Func>
-void forAllEvaluatedBlocks(const IR::ToplevelBlock* aToplevelBlock, Func function) {
+void forAllEvaluatedBlocks(const IR::Block* block, Func function) {
     std::set<const IR::Block*> visited;
-    ordered_set<const IR::Block*> frontier{aToplevelBlock};
+    ordered_set<const IR::Block*> frontier{block};
 
     while (!frontier.empty()) {
         // Pop a block off the frontier of blocks we haven't yet visited.
@@ -233,11 +239,19 @@ void forAllEvaluatedBlocks(const IR::ToplevelBlock* aToplevelBlock, Func functio
     }
 }
 
+/// Serialize an unstructured @annotation to a string.
 std::string serializeOneAnnotation(const IR::Annotation* annotation);
 
+/// Serialize a structured @annotation to the appropriate Protobuf message.
+void serializeOneStructuredAnnotation(
+    const IR::Annotation* annotation,
+    ::p4::config::v1::StructuredAnnotation* structuredAnnotation);
+
 /// Serialize @annotated's P4 annotations and attach them to a P4Info message
-/// with an 'annotations' field. '@name', '@id' and documentation annotations
-/// are ignored, as well as annotations whose name satisfies predicate @p.
+/// with an 'annotations' and a 'structured_annotations" field. All structured
+/// annotations are included. '@name', '@id' and documentation unstructured
+/// annotations are ignored, as well as annotations whose name satisfies
+/// predicate @p.
 template <typename Message, typename UnaryPredicate>
 void addAnnotations(Message* message, const IR::IAnnotated* annotated, UnaryPredicate p) {
     CHECK_NULL(message);
@@ -246,6 +260,11 @@ void addAnnotations(Message* message, const IR::IAnnotated* annotated, UnaryPred
     if (annotated == nullptr) return;
 
     for (const IR::Annotation* annotation : annotated->getAnnotations()->annotations) {
+        // Always add all structured annotations.
+        if (annotation->annotationKind() != IR::Annotation::Kind::Unstructured) {
+            serializeOneStructuredAnnotation(annotation, message->add_structured_annotations());
+            continue;
+        }
         // Don't output the @name or @id annotations; they're represented
         // elsewhere in P4Info messages.
         if (annotation->name == IR::Annotation::nameAnnotation) continue;
@@ -306,9 +325,27 @@ void addDocumentation(Message* message, const IR::IAnnotated* annotated) {
 }
 
 /// Set all the fields in the @preamble, including the 'annotations' and 'doc'
-/// fields.
+/// fields. '@name', '@id' and documentation annotations are ignored, as well as
+/// annotations whose name satisfies predicate @p.
+template <typename UnaryPredicate>
 void setPreamble(::p4::config::v1::Preamble* preamble,
-                 p4rt_id_t id, cstring name, cstring alias, const IR::IAnnotated* annotated);
+                 p4rt_id_t id, cstring name, cstring alias,
+                 const IR::IAnnotated* annotated, UnaryPredicate p) {
+    CHECK_NULL(preamble);
+    preamble->set_id(id);
+    preamble->set_name(name);
+    preamble->set_alias(alias);
+    addAnnotations(preamble, annotated, p);
+    addDocumentation(preamble, annotated);
+}
+
+/// Calls setPreamble with a unconditionally false predicate (no annotation
+/// filtered out).
+inline void setPreamble(::p4::config::v1::Preamble* preamble,
+                 p4rt_id_t id, cstring name, cstring alias,
+                 const IR::IAnnotated* annotated) {
+    setPreamble(preamble, id, name, alias, annotated, [](cstring){ return false; });
+}
 
 /// @return @table's size property if available, falling back to the
 /// architecture's default size.
@@ -334,36 +371,62 @@ struct Counterlike {
     const int64_t size;
     /// If not none, the instance is a direct resource associated with @table.
     const boost::optional<cstring> table;
+    /// If the type of the index is a user-defined type, this is the name of the type. Otherwise it
+    /// is nullptr.
+    const cstring index_type_name;
 
     /// @return the information required to serialize an explicit @instance of
     /// @Kind, which is defined inside a control block.
     static boost::optional<Counterlike<Kind>>
-    from(const IR::ExternBlock* instance) {
+    from(const IR::ExternBlock* instance,
+         const ReferenceMap* refMap,
+         const P4::TypeMap* typeMap,
+         ::p4::config::v1::P4TypeInfo* p4RtTypeInfo) {
         CHECK_NULL(instance);
-        auto declaration = instance->node->to<IR::IDeclaration>();
+        auto declaration = instance->node->to<IR::Declaration_Instance>();
 
         // Counter and meter externs refer to their unit as a "type"; this is
         // (confusingly) unrelated to the "type" field of a counter or meter in
         // P4Info.
         auto unit = instance->getParameterValue("type");
         if (!unit->is<IR::Declaration_ID>()) {
-            ::error("%1% '%2%' has a unit type which is not an enum constant: %3%",
+            ::error(ErrorType::ERR_INVALID,
+                    "%1% '%2%' has a unit type which is not an enum constant: %3%",
                     CounterlikeTraits<Kind>::name(), declaration, unit);
             return boost::none;
         }
 
         auto size = instance->getParameterValue(CounterlikeTraits<Kind>::sizeParamName());
         if (!size->template is<IR::Constant>()) {
-            ::error("%1% '%2%' has a non-constant size: %3%",
+            ::error(ErrorType::ERR_INVALID, "%1% '%2%' has a non-constant size: %3%",
                     CounterlikeTraits<Kind>::name(), declaration, size);
             return boost::none;
+        }
+
+        cstring index_type_name = nullptr;
+        auto indexTypeParamIdx = CounterlikeTraits<Kind>::indexTypeParamIdx();
+        // In v1model, the index is a bit<32>, in PSA it is determined by a type parameter.
+        if (indexTypeParamIdx != boost::none) {
+            // retrieve type parameter for the index.
+            BUG_CHECK(declaration->type->is<IR::Type_Specialized>(),
+                      "%1%: expected Type_Specialized", declaration->type);
+            auto type = declaration->type->to<IR::Type_Specialized>();
+            BUG_CHECK(type->arguments->size() > *indexTypeParamIdx,
+                      "%1%: expected at least %2% type arguments",
+                      instance, *indexTypeParamIdx + 1);
+            auto typeArg = type->arguments->at(*indexTypeParamIdx);
+            // We ignore the return type on purpose, but the call is required to update p4RtTypeInfo
+            // if the index has a user-defined type.
+            TypeSpecConverter::convert(refMap, typeMap, typeArg, p4RtTypeInfo);
+            index_type_name = getTypeName(typeArg, typeMap);
         }
 
         return Counterlike<Kind>{declaration->controlPlaneName(),
                                  declaration->to<IR::IAnnotated>(),
                                  unit->to<IR::Declaration_ID>()->name,
-                                 size->template to<IR::Constant>()->value.get_si(),
-                                 boost::none};
+                                 int(size->template to<IR::Constant>()->value),
+                                 boost::none,
+                                 index_type_name};
     }
 
     /// @return the information required to serialize an @instance of @Kind which
@@ -376,19 +439,22 @@ struct Counterlike {
                   "Caller should've ensured we have a name");
 
         if (instance.type->name != CounterlikeTraits<Kind>::directTypeName()) {
-            ::error("Expected a direct %1%: %2%", CounterlikeTraits<Kind>::name(),
+            ::error(ErrorType::ERR_EXPECTED,
+                    "Expected a direct %1%: %2%", CounterlikeTraits<Kind>::name(),
                     instance.expression);
             return boost::none;
         }
 
         auto unitArgument = instance.substitution.lookupByName("type")->expression;
         if (unitArgument == nullptr) {
-            ::error("Direct %1% instance %2% should take a constructor argument",
+            ::error(ErrorType::ERR_EXPECTED,
+                    "Direct %1% instance %2% should take a constructor argument",
                     CounterlikeTraits<Kind>::name(), instance.expression);
             return boost::none;
         }
         if (!unitArgument->is<IR::Member>()) {
-            ::error("Direct %1% instance %2% has an unexpected constructor argument",
+            ::error(ErrorType::ERR_UNEXPECTED,
+                    "Direct %1% instance %2% has an unexpected constructor argument",
                     CounterlikeTraits<Kind>::name(), instance.expression);
             return boost::none;
         }
@@ -396,7 +462,8 @@ struct Counterlike {
         auto unit = unitArgument->to<IR::Member>()->member.name;
         return Counterlike<Kind>{*instance.name, instance.annotations,
                                  unit, Helpers::getTableSize(table),
-                                 table->controlPlaneName()};
+                                 table->controlPlaneName(),
+                                 ""};
     }
 };
 

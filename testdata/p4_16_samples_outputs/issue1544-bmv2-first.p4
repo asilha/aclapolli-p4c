@@ -1,11 +1,13 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 bit<16> sometimes_dec(in bit<16> x) {
-    if (x > 16w5) 
+    if (x > 16w5) {
         return x + 16w65535;
-    else 
+    } else {
         return x;
+    }
 }
 struct metadata {
 }
@@ -20,8 +22,8 @@ struct headers {
     ethernet_t ethernet;
 }
 
-action my_drop() {
-    mark_to_drop();
+action my_drop(inout standard_metadata_t smeta) {
+    mark_to_drop(smeta);
 }
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     state start {
@@ -43,9 +45,9 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         }
         actions = {
             set_port();
-            my_drop();
+            my_drop(standard_metadata);
         }
-        default_action = my_drop();
+        default_action = my_drop(standard_metadata);
     }
     apply {
         mac_da.apply();

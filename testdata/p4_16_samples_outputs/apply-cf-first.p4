@@ -8,15 +8,15 @@ control x() {
         default_action = nop();
     }
     apply {
-        if (t.apply().hit) 
+        if (t.apply().hit) {
             ;
+        }
         switch (t.apply().action_run) {
             nop: {
             }
             default: {
             }
         }
-
     }
 }
 

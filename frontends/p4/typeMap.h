@@ -40,18 +40,19 @@ Objects that have a type in the map:
 class TypeMap final : public ProgramMap {
  protected:
     // We want to have the same canonical type for two
-    // different tuples or stacks with the same signature.
+    // different tuples, lists, or stacks with the same signature.
     std::vector<const IR::Type*> canonicalTuples;
     std::vector<const IR::Type*> canonicalStacks;
+    std::vector<const IR::Type*> canonicalLists;
 
     // Map each node to its canonical type
-    std::map<const IR::Node*, const IR::Type*> typeMap;
+    ordered_map<const IR::Node*, const IR::Type*> typeMap;
     // All left-values in the program.
-    std::set<const IR::Expression*> leftValues;
+    ordered_set<const IR::Expression*> leftValues;
     // All compile-time constants.  A compile-time constant
     // is not necessarily a constant - it could be a directionless
     // parameter as well.
-    std::set<const IR::Expression*> constants;
+    ordered_set<const IR::Expression*> constants;
     // For each type variable in the program the actual
     // type that is substituted for it.
     TypeVariableSubstitution allTypeVariables;
@@ -76,6 +77,8 @@ class TypeMap final : public ProgramMap {
     { return typeMap.size(); }
 
     void setLeftValue(const IR::Expression* expression);
+    void cloneExpressionProperties(const IR::Expression* to,
+                                   const IR::Expression* from);
     void setCompileTimeConstant(const IR::Expression* expression);
     void addSubstitutions(const TypeVariableSubstitution* tvs);
     const IR::Type* getSubstitution(const IR::Type_Var* var)
@@ -91,6 +94,12 @@ class TypeMap final : public ProgramMap {
 
     // Used for tuples and stacks only
     const IR::Type* getCanonical(const IR::Type* type);
+    /// The minimum width in bits of this type.  If the width is not
+    /// well-defined this will report an error and return -1.
+    int minWidthBits(const IR::Type* type, const IR::Node* errorPosition);
+
+    /// True is type occupies no storage.
+    bool typeIsEmpty(const IR::Type* type) const;
 };
 }  // namespace P4
 

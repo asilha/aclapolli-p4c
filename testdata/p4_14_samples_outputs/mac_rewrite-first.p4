@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct egress_metadata_t {
@@ -125,8 +126,9 @@ control process_mac_rewrite(inout headers hdr, inout metadata meta, inout standa
         default_action = NoAction();
     }
     apply {
-        if (meta.egress_metadata.routed == 1w1) 
+        if (meta.egress_metadata.routed == 1w1) {
             mac_rewrite.apply();
+        }
     }
 }
 

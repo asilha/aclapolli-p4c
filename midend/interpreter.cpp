@@ -2,13 +2,14 @@
 #include "frontends/common/constantFolding.h"
 #include "frontends/p4/methodInstance.h"
 #include "frontends/p4/coreLibrary.h"
+#include "lib/exceptions.h"
 
 namespace P4 {
 
 unsigned SymbolicValue::crtid = 0;
 
 SymbolicValue* SymbolicValueFactory::create(const IR::Type* type, bool uninitialized) const {
-    type = typeMap->getType(type, true);
+    type = typeMap->getTypeType(type, true);
     if (type->is<IR::Type_Bits>())
         return new SymbolicInteger(ScalarValue::init(uninitialized), type->to<IR::Type_Bits>());
     if (type->is<IR::Type_Boolean>())
@@ -17,6 +18,8 @@ SymbolicValue* SymbolicValueFactory::create(const IR::Type* type, bool uninitial
         return new SymbolicStruct(type->to<IR::Type_Struct>(), uninitialized, this);
     if (type->is<IR::Type_Header>())
         return new SymbolicHeader(type->to<IR::Type_Header>(), uninitialized, this);
+    if (type->is<IR::Type_HeaderUnion>())
+        return new SymbolicStruct(type->to<IR::Type_HeaderUnion>(), uninitialized, this);
     if (type->is<IR::Type_Varbits>())
         return new SymbolicVarbit(type->to<IR::Type_Varbits>());
     if (type->is<IR::Type_Stack>()) {
@@ -53,7 +56,7 @@ SymbolicValue* SymbolicValueFactory::create(const IR::Type* type, bool uninitial
 }
 
 bool SymbolicValueFactory::isFixedWidth(const IR::Type* type) const {
-    type = typeMap->getType(type, true);
+    type = typeMap->getTypeType(type, true);
     if (type->is<IR::Type_Varbits>())
         return false;
     if (type->is<IR::Type_Extern>())
@@ -79,7 +82,7 @@ bool SymbolicValueFactory::isFixedWidth(const IR::Type* type) const {
 }
 
 unsigned SymbolicValueFactory::getWidth(const IR::Type* type) const {
-    type = typeMap->getType(type, true);
+    type = typeMap->getTypeType(type, true);
     if (type->is<IR::Type_Bits>())
         return type->to<IR::Type_Bits>()->size;
     if (type->is<IR::Type_Boolean>())
@@ -417,6 +420,18 @@ SymbolicValue* SymbolicArray::next(const IR::Node* node) {
     return new SymbolicException(node, P4::StandardExceptions::StackOutOfBounds);
 }
 
+SymbolicValue* SymbolicArray::lastIndex(const IR::Node* node) {
+    for (unsigned i = 0; i < values.size(); i++) {
+        unsigned index = values.size() - i - 1;
+        auto v = values.at(index);
+        if (v->valid->isUnknown() || v->valid->isUninitialized())
+            return new AnyElement(this);
+        if (v->valid->value)
+            return new SymbolicInteger(new IR::Constant(IR::Type_Bits::get(32), index));
+    }
+    return new SymbolicException(node, P4::StandardExceptions::StackOutOfBounds);
+}
+
 SymbolicValue* SymbolicArray::last(const IR::Node* node) {
     for (unsigned i = 0; i < values.size(); i++) {
         unsigned index = values.size() - i - 1;
@@ -585,6 +600,88 @@ SymbolicVoid* SymbolicVoid::instance = new SymbolicVoid();
 
 /*****************************************************************************************/
 
+const IR::Expression* getConstant(const ScalarValue* constant) {
+    if (constant->is<SymbolicBool>()) {
+        return new IR::BoolLiteral(IR::Type::Boolean::get(),
+            constant->to<SymbolicBool>()->value);
+    } else if (constant->is<SymbolicInteger>()){
+        return constant->to<SymbolicInteger>()->constant;
+    }
+    BUG("Unimplemented structure for expression evaluation %1%", constant);
+}
+
+void ExpressionEvaluator::checkResult(const IR::Expression* expression,
+                                      const IR::Expression* result) {
+    if (result->is<IR::Constant>()){
+        set(expression, new SymbolicInteger(result->to<IR::Constant>()));
+        return;
+    } else if (result->is<IR::BoolLiteral>()){
+        set(expression, new SymbolicBool(result->to<IR::BoolLiteral>()->value));
+        return;
+    }
+    BUG("%1% : expected a constant/bool literal", result);
+}
+
+void ExpressionEvaluator::setNonConstant(const IR::Expression* expression) {
+    auto type = typeMap->getType(expression, true);
+    if (type->is<IR::BoolLiteral>()) {
+        set(expression, new SymbolicBool(ScalarValue::ValueState::NotConstant));
+    } else if (type->is<IR::Type_Bits>()) {
+        set(expression, new SymbolicInteger(ScalarValue::ValueState::NotConstant,
+                                            type->to<IR::Type_Bits>()));
+    } else {
+        BUG("Non Type_Bits type %1% for expression %2%", type, expression);
+    }
+}
+
+void ExpressionEvaluator::postorder(const IR::Operation_Ternary* expression) {
+    auto e0 = get(expression->e0);
+    if (e0->is<SymbolicError>()) {
+        set(expression, e0);
+        return;
+    }
+    auto e1 = get(expression->e1);
+    if (e1->is<SymbolicError>()) {
+        set(expression, e1);
+        return;
+    }
+    auto e2 = get(expression->e2);
+    if (e2->is<SymbolicError>()) {
+        set(expression, e2);
+        return;
+    }
+    auto clone = expression->clone();
+    BUG_CHECK(e0->is<ScalarValue>(), "%1%: expected an ScalarValue", e0);
+    BUG_CHECK(e1->is<ScalarValue>(), "%1%: expected an ScalarValue", e1);
+    BUG_CHECK(e2->is<ScalarValue>(), "%1%: expected an ScalarValue", e2);
+    auto e0i = e0->to<ScalarValue>();
+    auto e1i = e1->to<ScalarValue>();
+    auto e2i = e2->to<ScalarValue>();
+    if (e0i->isUninitialized()) {
+        auto result = new SymbolicStaticError(expression->e0, "Uninitialized");
+        set(expression, result);
+        return;
+    } else if (e1i->isUninitialized()) {
+        auto result = new SymbolicStaticError(expression->e1, "Uninitialized");
+        set(expression, result);
+        return;
+    } else if (e2i->isUninitialized()) {
+        auto result = new SymbolicStaticError(expression->e2, "Uninitialized");
+        set(expression, result);
+        return;
+    }else if (!e0i->isUnknown() && !e1i->isUnknown() && !e2i->isUnknown()) {
+        clone->e0 = getConstant(e0i);
+        clone->e1 = getConstant(e1i);
+        clone->e2 = getConstant(e2i);
+        DoConstantFolding cf(refMap, typeMap);
+        cf.setCalledBy(this);
+        auto result = clone->apply(cf);
+        checkResult(expression, result);
+        return;
+    }
+    setNonConstant(expression);
+}
+
 void ExpressionEvaluator::postorder(const IR::Operation_Binary* expression) {
     auto l = get(expression->left);
     if (l->is<SymbolicError>()) {
@@ -597,10 +694,10 @@ void ExpressionEvaluator::postorder(const IR::Operation_Binary* expression) {
         return;
     }
     auto clone = expression->clone();
-    BUG_CHECK(l->is<SymbolicInteger>(), "%1%: expected an SymbolicInteger", l);
-    BUG_CHECK(r->is<SymbolicInteger>(), "%1%: expected an SymbolicInteger", r);
-    auto li = l->to<SymbolicInteger>();
-    auto ri = r->to<SymbolicInteger>();
+    BUG_CHECK(l->is<ScalarValue>(), "%1%: expected an ScalarValue", l);
+    BUG_CHECK(r->is<ScalarValue>(), "%1%: expected an ScalarValue", r);
+    auto li = l->to<ScalarValue>();
+    auto ri = r->to<ScalarValue>();
     if (li->isUninitialized()) {
         auto result = new SymbolicStaticError(expression->left, "Uninitialized");
         set(expression, result);
@@ -610,17 +707,15 @@ void ExpressionEvaluator::postorder(const IR::Operation_Binary* expression) {
         set(expression, result);
         return;
     } else if (!li->isUnknown() && !ri->isUnknown()) {
-        clone->left = li->constant;
-        clone->right = ri->constant;
+        clone->left = getConstant(li);
+        clone->right = getConstant(ri);
         DoConstantFolding cf(refMap, typeMap);
+        cf.setCalledBy(this);
         auto result = clone->apply(cf);
-        BUG_CHECK(result->is<IR::Constant>(), "%1%: expected a constant", result);
-        set(expression, new SymbolicInteger(result->to<IR::Constant>()));
+        checkResult(expression, result);
         return;
     }
-    auto type = typeMap->getType(expression, true);
-    set(expression, new SymbolicInteger(ScalarValue::ValueState::NotConstant,
-                                        type->to<IR::Type_Bits>()));
+    setNonConstant(expression);
 }
 
 void ExpressionEvaluator::postorder(const IR::Operation_Unary* expression) {
@@ -646,6 +741,7 @@ void ExpressionEvaluator::postorder(const IR::Operation_Unary* expression) {
         auto li = l->to<SymbolicInteger>();
         clone->expr = li->constant;
         DoConstantFolding cf(refMap, typeMap);
+        cf.setCalledBy(this);
         auto result = expression->apply(cf);
         BUG_CHECK(result->is<IR::Constant>(), "%1%: expected a constant", result);
         set(expression, new SymbolicInteger(result->to<IR::Constant>()));
@@ -654,6 +750,7 @@ void ExpressionEvaluator::postorder(const IR::Operation_Unary* expression) {
         auto li = l->to<SymbolicBool>();
         clone->expr = new IR::BoolLiteral(li->value);
         DoConstantFolding cf(refMap, typeMap);
+        cf.setCalledBy(this);
         auto result = expression->apply(cf);
         BUG_CHECK(result->is<IR::BoolLiteral>(), "%1%: expected a boolean", result);
         set(expression, new SymbolicBool(result->to<IR::BoolLiteral>()));
@@ -672,6 +769,16 @@ void ExpressionEvaluator::postorder(const IR::ListExpression* expression) {
     for (auto e : expression->components) {
         auto v = get(e);
         result->add(v);
+    }
+    set(expression, result);
+}
+
+void ExpressionEvaluator::postorder(const IR::StructExpression* expression) {
+    auto type = typeMap->getType(expression, true);
+    auto result = new SymbolicStruct(type->to<IR::Type_StructLike>());
+    for (auto e : expression->components) {
+        auto v = get(e->expression);
+        result->set(e->name, v);
     }
     set(expression, result);
 }
@@ -706,11 +813,11 @@ void ExpressionEvaluator::postorder(const IR::Operation_Relation* expression) {
         return;
     }
     if (lv->isUnknown()) {
-        set(expression, l);
+        set(expression, new SymbolicBool(ScalarValue::ValueState::NotConstant));
         return;
     }
     if (rv->isUnknown()) {
-        set(expression, r);
+        set(expression, new SymbolicBool(ScalarValue::ValueState::NotConstant));
         return;
     }
 
@@ -720,6 +827,7 @@ void ExpressionEvaluator::postorder(const IR::Operation_Relation* expression) {
         clone->left = l->to<SymbolicInteger>()->constant;
         clone->right = r->to<SymbolicInteger>()->constant;
         DoConstantFolding cf(refMap, typeMap);
+        cf.setCalledBy(this);
         auto result = expression->apply(cf);
         BUG_CHECK(result->is<IR::BoolLiteral>(), "%1%: expected a boolean", result);
         set(expression, new SymbolicBool(result->to<IR::BoolLiteral>()));
@@ -729,6 +837,7 @@ void ExpressionEvaluator::postorder(const IR::Operation_Relation* expression) {
         clone->left = new IR::BoolLiteral(l->to<SymbolicBool>()->value);
         clone->right = new IR::BoolLiteral(r->to<SymbolicBool>()->value);
         DoConstantFolding cf(refMap, typeMap);
+        cf.setCalledBy(this);
         auto result = expression->apply(cf);
         BUG_CHECK(result->is<IR::BoolLiteral>(), "%1%: expected a boolean", result);
         set(expression, new SymbolicBool(result->to<IR::BoolLiteral>()));
@@ -739,6 +848,10 @@ void ExpressionEvaluator::postorder(const IR::Operation_Relation* expression) {
 
 void ExpressionEvaluator::postorder(const IR::Member* expression) {
     auto type = typeMap->getType(expression, true);
+    if (type->is<IR::Type_Error>()) {
+        set(expression, new SymbolicEnum(expression->type, expression->member));
+        return;
+    }
     if (type->is<IR::Type_MethodBase>()) {
         // not really void, but we can't do anything with this anyway
         set(expression, SymbolicVoid::get());
@@ -766,6 +879,12 @@ void ExpressionEvaluator::postorder(const IR::Member* expression) {
                 set(expression, v);
                 return;
             }
+        } else if (expression->member.name == IR::Type_Stack::lastIndex) {
+            v = array->lastIndex(expression);
+            if (v->is<SymbolicError>()) {
+                set(expression, v);
+                return;
+            }
         } else {
             BUG("%1%: unexpected expression", expression);
         }
@@ -783,23 +902,25 @@ bool ExpressionEvaluator::preorder(const IR::ArrayIndex* expression) {
     visit(expression->left);
     evaluatingLeftValue = lv;
     visit(expression->right);
-    return false;  // prune
+    return true;  // don't prune
 }
 
 void ExpressionEvaluator::postorder(const IR::ArrayIndex* expression) {
     auto l = get(expression->left);
     auto r = get(expression->right);
+
+    if (l->is<SymbolicError>()) {
+        set(expression, l);
+        return;
+    }
+    if (r->is<SymbolicError>()) {
+        set(expression, r);
+        return;
+    }
+
     auto rv = r->to<ScalarValue>();
     auto lv = l->to<SymbolicArray>();
 
-    if (lv->is<SymbolicError>()) {
-        set(expression, lv);
-        return;
-    }
-    if (rv->is<SymbolicError>()) {
-        set(expression, rv);
-        return;
-    }
     if (rv->isUninitialized() || rv->isUnknown()) {
         if (rv->isUninitialized()) {
             auto result = new SymbolicStaticError(expression->right, "Uninitialized");
@@ -971,7 +1092,7 @@ void ExpressionEvaluator::postorder(const IR::MethodCallExpression* expression) 
         mi->actualMethodType->returnType->is<IR::Type_Void>()) {
         set(expression, SymbolicVoid::get());
     } else {
-        auto type = typeMap->getType(mi->actualMethodType->returnType, true);
+        auto type = typeMap->getTypeType(mi->actualMethodType->returnType, true);
         auto res = factory->create(type, false);
         set(expression, res);
     }

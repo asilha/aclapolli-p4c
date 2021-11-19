@@ -12,41 +12,41 @@ header H {
 }
 
 control c(out B32 x) {
-    N32 k_0;
-    @name(".NoAction") action NoAction_0() {
+    @name("c.k") N32 k_0;
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name("c.t") table t_0 {
         actions = {
-            NoAction_0();
+            NoAction_1();
         }
         key = {
             k_0: exact @name("k") ;
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
-    @hidden action act() {
+    @hidden action newtype34() {
         k_0 = 32w0;
         x = 32w0;
     }
-    @hidden action act_0() {
+    @hidden action newtype43() {
         x = 32w3;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_newtype34 {
         actions = {
-            act();
+            newtype34();
         }
-        const default_action = act();
+        const default_action = newtype34();
     }
-    @hidden table tbl_act_0 {
+    @hidden table tbl_newtype43 {
         actions = {
-            act_0();
+            newtype43();
         }
-        const default_action = act_0();
+        const default_action = newtype43();
     }
     apply {
-        tbl_act.apply();
+        tbl_newtype34.apply();
         t_0.apply();
-        tbl_act_0.apply();
+        tbl_newtype43.apply();
     }
 }
 

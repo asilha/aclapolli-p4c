@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 struct H {
@@ -33,11 +34,8 @@ control myc(inout H hdr, inout M meta, inout standard_metadata_t smeta) {
         }
         const entries = {
                         (32w1, MyIP) : set_eg(9w1);
-
                         (32w2, MyIP) : set_eg(9w2);
-
         }
-
     }
     apply {
         myt.apply();

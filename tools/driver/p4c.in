@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 #
 # Copyright 2013-present Barefoot Networks, Inc.
 #
@@ -19,7 +19,7 @@ import sys
 # p4c is supposed to work in two environments:
 #  - installed mode: in ${prefix}/bin, with artifacts in ${datadir}/p4c/*
 #  - developer mode: in the build dir with artifacts rooted also in the build dir
-install_dir = os.path.abspath(os.path.dirname(sys.argv[0]))
+install_dir = os.path.abspath(os.path.dirname(os.path.realpath(sys.argv[0])))
 if not os.path.exists(os.path.join(install_dir, 'p4c_src')):
     # this is the installed configuration
     build_type = "INSTALLED"
@@ -42,8 +42,8 @@ sys.path.insert(1, artifacts_dir)
 os.environ['P4C_BUILD_TYPE'] = build_type
 os.environ['P4C_BIN_DIR'] = install_dir
 os.environ['P4C_CFG_PATH'] = os.path.join(artifacts_dir, "p4c_src")
-os.environ['P4C_16_INCLUDE_PATH'] = os.path.join(artifacts_dir, "p4include")
-os.environ['P4C_14_INCLUDE_PATH'] = os.path.join(artifacts_dir, "p4_14include")
+os.environ['P4C_16_INCLUDE_PATH'] = os.path.realpath(os.path.join(artifacts_dir, "p4include"))
+os.environ['P4C_14_INCLUDE_PATH'] = os.path.realpath(os.path.join(artifacts_dir, "p4_14include"))
 
 from p4c_src.main import main
 from p4c_src.main import set_version

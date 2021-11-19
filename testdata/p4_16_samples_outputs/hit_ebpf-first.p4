@@ -61,12 +61,15 @@ control pipe(inout Headers_t headers, out bool pass) {
     }
     apply {
         pass = true;
-        if (!headers.ipv4.isValid()) {
+        if (headers.ipv4.isValid()) {
+            ;
+        } else {
             pass = false;
             return;
         }
-        if (Check_src_ip.apply().hit) 
+        if (Check_src_ip.apply().hit) {
             pass = pass;
+        }
     }
 }
 

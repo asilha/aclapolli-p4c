@@ -56,7 +56,7 @@ class BackendDriver:
         If the command was previously set, it is overwritten
         """
         if cmd_name in self._commands:
-            print >> sys.stderr, "Warning: overwriting command", cmd_name
+            print("Warning: overwriting command", cmd_name, file=sys.stderr)
         self._commands[cmd_name] = []
         self._commands[cmd_name].append(cmd)
 
@@ -65,8 +65,8 @@ class BackendDriver:
         """
         if cmd_name not in self._commands:
             if self._verbose:
-                print >> sys.stderr, "Command", "'" + cmd_name + "'", \
-                    "was not set for target", self._backend
+                print("Command", "'" + cmd_name + "'", \
+                    "was not set for target", self._backend, file=sys.stderr)
             return
         self._commands[cmd_name].append(option)
 
@@ -147,10 +147,25 @@ class BackendDriver:
 
         # P4Runtime options
         if opts.p4runtime_file:
+            print("'--p4runtime-file' and '--p4runtime-format'", \
+                "are deprecated, consider using '--p4runtime-files'", file=sys.stderr)
             self.add_command_option('compiler',
-                                       "--p4runtime-file {}".format(opts.p4runtime_file))
+                                    "--p4runtime-file {}".format(opts.p4runtime_file))
             self.add_command_option('compiler',
-                                       "--p4runtime-format {}".format(opts.p4runtime_format))
+                                    "--p4runtime-format {}".format(opts.p4runtime_format))
+
+        if opts.p4runtime_files:
+            self.add_command_option('compiler',
+                                    "--p4runtime-files {}".format(opts.p4runtime_files))
+
+        # disable annotations
+        if opts.disabled_annos is not None:
+            self.add_command_option('compiler',
+                                    '--disable-annotations={}'.format(opts.disabled_annos))
+
+        # enable parser inlining optimization
+        if opts.optimizeParserInlining:
+            self.add_command_option('compiler', '--parser-inline-opt')
 
         # set developer options
         if (os.environ['P4C_BUILD_TYPE'] == "DEVELOPER"):
@@ -164,8 +179,12 @@ class BackendDriver:
                 self.add_command_option('compiler', "--dump {}".format(opts.dump_dir))
             if opts.json:
                 self.add_command_option('compiler', "--toJSON {}".format(opts.json))
+            if opts.json_source:
+                self.add_command_option('compiler', "--fromJSON {}".format(opts.json_source))
             if opts.pretty_print:
                 self.add_command_option('compiler', "--pp {}".format(opts.pretty_print))
+            if opts.ndebug_mode:
+                self.add_command_option('compiler', "--ndebug")
 
         if (os.environ['P4C_BUILD_TYPE'] == "DEVELOPER") and \
            'assembler' in self._commands and opts.debug:
@@ -182,6 +201,17 @@ class BackendDriver:
             # this is the default, each backend driver is supposed to enable all
             # its commands and the order in which they execute
             pass
+
+    def should_not_check_input(self, opts):
+        """
+        Custom backends can use this function to implement their own --help* options
+        which don't require input file to be specified. In such cases, this function
+        should be overloaded and return true whenever such option has been specified by
+        the user.
+        As a result, dummy.p4 will be used as a source file to prevent sanity checking
+        from failing.
+        """
+        return False
 
     def enable_commands(self, cmdsEnabled):
         """
@@ -206,7 +236,7 @@ class BackendDriver:
         Also exit with the command error code if failed
         """
         if self._dry_run:
-            print '{}:\n{}'.format(step, ' '.join(cmd))
+            print('{}:\n{}'.format(step, ' '.join(cmd)))
             return 0
 
         args = shlex.split(" ".join(cmd))
@@ -214,11 +244,11 @@ class BackendDriver:
             p = subprocess.Popen(args)
         except:
             import traceback
-            print >> sys.stderr, "error invoking {}".format(" ".join(cmd))
-            print >> sys.stderr, traceback.format_exc()
+            print("error invoking {}".format(" ".join(cmd)), file=sys.stderr)
+            print(traceback.format_exc(), file=sys.stderr)
             return 1
 
-        if self._verbose: print 'running {}'.format(' '.join(cmd))
+        if self._verbose: print('running {}'.format(' '.join(cmd)))
         p.communicate() # now wait
         return p.returncode
 
@@ -268,7 +298,7 @@ class BackendDriver:
             # run the command
             cmd = self._commands[c]
             if cmd[0].find('/') != 0 and (util.find_bin(cmd[0]) == None):
-                print >> sys.stderr, "{}: command not found".format(cmd[0])
+                print("{}: command not found".format(cmd[0]), file=sys.stderr)
                 sys.exit(1)
 
             rc = self.runCmd(c, cmd)
@@ -280,3 +310,5 @@ class BackendDriver:
             # backends that override run can chose what to do on error
             if rc != 0:
                 return rc
+
+        return 0

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header ethernet_t {
@@ -27,7 +28,7 @@ control c(inout headers hdr, inout metadata meta, inout standard_metadata_t stan
         standard_metadata.egress_port = port;
     }
     @name(".discard") action discard() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".c1") table c1 {
         actions = {
@@ -69,7 +70,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         standard_metadata.egress_port = port;
     }
     @name(".discard") action discard() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".a1") table a1 {
         actions = {
@@ -96,8 +97,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         if (standard_metadata.ingress_port & 9w0x1 == 9w1) {
             a1.apply();
             c_0.apply(hdr, meta, standard_metadata);
-        }
-        else {
+        } else {
             b1.apply();
             c_0.apply(hdr, meta, standard_metadata);
         }

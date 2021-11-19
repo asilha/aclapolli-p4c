@@ -27,15 +27,15 @@ const IR::Node* DoInstantiateCalls::postorder(IR::MethodCallExpression* expressi
 
     auto ref = refMap->getDeclaration(tn->typeName->path, true);
     if (!ref->is<IR::P4Control>() && !ref->is<IR::P4Parser>()) {
-        ::error("%1%: cannot invoke method of %2%", expression, ref);
+        ::error(ErrorType::ERR_INVALID,
+                "%1%: cannot invoke method of %2%", expression, ref);
         return expression;
     }
 
     auto name = refMap->newName(tn->typeName->path->name + "_inst");
     LOG3("Inserting instance " << name);
     auto annos = new IR::Annotations();
-    annos->add(new IR::Annotation(IR::Annotation::nameAnnotation,
-                                  { new IR::StringLiteral(tn->typeName->path->toString()) }));
+    annos->add(new IR::Annotation(IR::Annotation::nameAnnotation, tn->typeName->path->toString()));
     auto inst = new IR::Declaration_Instance(
         expression->srcInfo, IR::ID(name), annos,
         tn->typeName->clone(), new IR::Vector<IR::Argument>());

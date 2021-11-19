@@ -31,6 +31,9 @@ class ChooseEnumRepresentation {
     virtual ~ChooseEnumRepresentation() {}
     // If true this type has to be converted.
     virtual bool convert(const IR::Type_Enum* type) const = 0;
+    // Returns the value to be assigned to the enum Constant.
+    // Maps to the index of member in the enum by default.
+    virtual unsigned encoding(const IR::Type_Enum *, unsigned n) const { return n; }
     // enumCount is the number of different enum values.
     // The returned value is the width of Type_Bits used
     // to represent the enum.  Obviously, we must have
@@ -109,9 +112,12 @@ class ConvertEnums : public PassManager {
  public:
     using EnumMapping = decltype(DoConvertEnums::repr);
     ConvertEnums(ReferenceMap* refMap, TypeMap* typeMap,
-                 ChooseEnumRepresentation* policy)
+                 ChooseEnumRepresentation* policy,
+                 TypeChecking* typeChecking = nullptr)
         : convertEnums(new DoConvertEnums(policy, typeMap)) {
-        passes.push_back(new TypeChecking(refMap, typeMap));
+        if (!typeChecking)
+            typeChecking = new TypeChecking(refMap, typeMap);
+        passes.push_back(typeChecking);
         passes.push_back(convertEnums);
         passes.push_back(new ClearTypeMap(typeMap));
         setName("ConvertEnums");

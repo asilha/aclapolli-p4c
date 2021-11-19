@@ -17,23 +17,31 @@ set (MIDEND_SRCS
   complexComparison.cpp
   convertEnums.cpp
   copyStructures.cpp
-  eliminateTuples.cpp
   eliminateNewtype.cpp
   eliminateSerEnums.cpp
+  eliminateSwitch.cpp
+  eliminateTuples.cpp
+  eliminateTypedefs.cpp
   expandEmit.cpp
   expandLookahead.cpp
+  fillEnumMap.cpp
+  flattenHeaders.cpp
   flattenInterfaceStructs.cpp
   interpreter.cpp
+  global_copyprop.cpp
   local_copyprop.cpp
   nestedStructs.cpp
   noMatch.cpp
   orderArguments.cpp
   parserUnroll.cpp
   predication.cpp
+  removeAssertAssume.cpp
+  removeComplexExpressions.cpp
   removeExits.cpp
   removeLeftSlices.cpp
-  removeParameters.cpp
+  removeMiss.cpp
   removeSelectBooleans.cpp
+  replaceSelectRange.cpp
   removeUnusedParameters.cpp
   simplifyBitwise.cpp
   simplifyKey.cpp
@@ -51,15 +59,20 @@ set (MIDEND_HDRS
   complexComparison.h
   convertEnums.h
   copyStructures.h
-  eliminateTuples.h
   eliminateNewtype.h
   eliminateSerEnums.h
+  eliminateSwitch.h
+  eliminateTuples.h
+  eliminateTypedefs.h
   expandEmit.h
   expandLookahead.h
   expr_uses.h
+  fillEnumMap.h
+  flattenHeaders.h
   flattenInterfaceStructs.h
   has_side_effects.h
   interpreter.h
+  global_copyprop.h
   local_copyprop.h
   midEndLast.h
   nestedStructs.h
@@ -67,11 +80,14 @@ set (MIDEND_HDRS
   orderArguments.h
   parserUnroll.h
   predication.h
+  removeAssertAssume.h
+  removeComplexExpressions.h
   removeExits.h
   removeLeftSlices.h
-  removeParameters.h
+  removeMiss.h
   removeSelectBooleans.h
   removeUnusedParameters.h
+  replaceSelectRange.h
   simplifyBitwise.h
   simplifyKey.h
   simplifySelectCases.h

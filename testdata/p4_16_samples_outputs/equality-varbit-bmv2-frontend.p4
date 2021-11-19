@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header H {
@@ -21,12 +22,13 @@ parser p(packet_in b, out headers hdr, inout metadata meta, inout standard_metad
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t stdmeta) {
-    H h_0;
+    @name("ingress.h") H h_0;
     apply {
         stdmeta.egress_spec = 9w0;
         h_0 = hdr.h;
-        if (hdr.h.v == h_0.v) 
+        if (hdr.h.v == h_0.v) {
             stdmeta.egress_spec = 9w1;
+        }
     }
 }
 

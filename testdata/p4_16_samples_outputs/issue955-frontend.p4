@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header Header {
@@ -21,7 +22,6 @@ parser ParserI(packet_in pk, out H hdr, inout M meta, inout standard_metadata_t 
 
 control IngressI(inout H hdr, inout M meta, inout standard_metadata_t smeta) {
     apply {
-        hdr.h.isValid();
     }
 }
 

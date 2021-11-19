@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header simple {
@@ -28,8 +29,9 @@ control MyVerifyChecksum(inout my_headers_t hdr, inout my_metadata_t meta) {
 
 control MyIngress(inout my_headers_t hdr, inout my_metadata_t meta, inout standard_metadata_t standard_metadata) {
     apply {
-        if (meta.parser_error == error.NoMatch) 
+        if (meta.parser_error == error.NoMatch) {
             hdr.s.setInvalid();
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
 header hdr {
@@ -41,22 +42,22 @@ control deparser(packet_out b, in Headers h) {
 }
 
 struct tuple_0 {
-    bit<16> field;
+    bit<16> f0;
 }
 
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
-    @hidden action act() {
-        hash<bit<16>, bit<10>, tuple_0, bit<10>>(h.h.a, HashAlgorithm.crc16, 10w0, { 16w1 }, 10w4);
+    @hidden action constantincalculationbmv2l27() {
+        hash<bit<16>, bit<10>, tuple_0, bit<10>>(h.h.a, HashAlgorithm.crc16, 10w0, (tuple_0){f0 = 16w1}, 10w4);
         sm.egress_spec = 9w0;
     }
-    @hidden table tbl_act {
+    @hidden table tbl_constantincalculationbmv2l27 {
         actions = {
-            act();
+            constantincalculationbmv2l27();
         }
-        const default_action = act();
+        const default_action = constantincalculationbmv2l27();
     }
     apply {
-        tbl_act.apply();
+        tbl_constantincalculationbmv2l27.apply();
     }
 }
 

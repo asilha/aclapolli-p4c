@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "ir.h"
 
+#include "dump.h"
+
 namespace {
 class IRDumper : public Inspector {
     std::ostream                &out;
@@ -27,7 +29,7 @@ class IRDumper : public Inspector {
         if (auto ctxt = getContext()) {
             if (unsigned(ctxt->depth) > maxdepth)
                 return false;
-            if (ctxt->child_name && ignore == ctxt->child_name)
+            if (ctxt->parent && ctxt->parent->child_name && ignore == ctxt->parent->child_name)
                 return false;
             out << indent_t(ctxt->depth);
             if (ctxt->child_name)

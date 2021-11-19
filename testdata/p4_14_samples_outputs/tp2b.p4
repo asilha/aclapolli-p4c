@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 header data_t {
@@ -70,8 +71,7 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
         E1.apply();
         if (hdr.data.f1 == 32w0) {
             EA.apply();
-        }
-        else {
+        } else {
             EB.apply();
         }
     }

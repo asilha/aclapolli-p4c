@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 @name("hdr") header hdr_0 {
@@ -52,7 +53,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         hdr.data.res_16 = hdr.data.opr1_16 |-| hdr.data.opr2_16;
     }
     @name("._drop") action _drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name(".t") table t_0 {
         actions = {

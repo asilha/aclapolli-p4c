@@ -1,4 +1,5 @@
 #include <core.p4>
+#define V1MODEL_VERSION 20200408
 #include <v1model.p4>
 
 struct meta_t {
@@ -17,8 +18,7 @@ header data_t {
 }
 
 struct metadata {
-    @name(".meta") 
-    meta_t meta;
+    bit<32> _meta_sum0;
 }
 
 struct headers {
@@ -34,10 +34,10 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name(".addf2") action addf2() {
-        meta.meta.sum = hdr.data.f2 + 32w100;
+        meta._meta_sum0 = hdr.data.f2 + 32w100;
     }
     @name(".noop") action noop() {
     }
@@ -45,12 +45,12 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         actions = {
             addf2();
             noop();
-            @defaultonly NoAction_0();
+            @defaultonly NoAction_1();
         }
         key = {
             hdr.data.f1: exact @name("data.f1") ;
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     apply {
         test1_0.apply();
